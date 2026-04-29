@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobre Nós</title>
+    <link rel="stylesheet" href="../styless.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark">
+    <header class="header">
+        <section>
+            <a href="../index.html" class="logo">
+                <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+            </a>
+
+            <button class="menu-toggle" id="menuToggle">
+              &#9776;
+           </button>
+
+            <nav class="navbar" id="navbar">
+                <a href="../index.html">Home</a>
+                <a href="pagina-barbeiros.html">Agendamentos</a>
+                <a href="Sobre-Nós.html">Sobre Nós</a>
+                <a href="Portifólio.html">Portifólio</a>
+                <a href="Localização.html">Localização</a>
+                <a href="./pags/login-barbeiro.html">Área do Barbeiro</a>
+                <div class="social-icons2">
+                  <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/logo insta.png" alt="Instagram"></a>
+                  <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/logo wpp.png" alt="Whatsapp"></a>
+                </div>
+            </nav>
+        </section>
+    </header>
+
+    <section class="about-us">
+        <div class="us-container">
+          <div class="start-img">
+            <img src="../assets/images/guel2018.png" alt="Foto Início">
+          </div>
+          <div class="start-text">
+            <h2>Como tudo começou</h2>
+            <p>Em 2018, tudo começou de forma simples, uma ideia na cabeça, uma máquina na mão e muita vontade de fazer acontecer.  
+            Na varanda de casa, comecei a atender os primeiros clientes.</p>
+            <p>Era só eu e a vontade de fazer dar certo.  
+            A cada corte, eu aprendia, errava, acertava e evoluía.  
+            Foi ali que entendi que, com dedicação, dava pra transformar aquele espaço simples em algo muito maior.</p>
+          </div>
+        </div>
+      </section>
+      
+      <section class="about-us">
+        <div class="us-container reverse">
+          <div class="start-text">
+            <h2>Da simplicidade ao sonho</h2>
+            <p>Com o tempo, o fruto do meu esforço trouxe reconhecimento.  
+            O que era só uma ideia na varanda passou a ter nome, identidade e propósito.  
+            Eu queria mais do que cortar cabelo, queria criar um espaço onde cada cliente se sentisse valorizado, respeitado e satisfeito com o que via no espelho.</p>
+            <p>A barbearia deixou de ser só um serviço e passou a ser um estilo de vida, um ponto de encontro, uma referência no bairro.  
+            Tudo isso mantendo a essência das origens: humildade, esforço e paixão pelo que faço.</p>
+          </div>
+          <div class="start-img">
+            <img src="../assets/images/guelfoto.png" alt="Foto Evolução">
+          </div>
+        </div>
+      </section>
+      
+      <section class="about-us">
+        <div class="us-container">
+          <div class="start-img">
+            <img src="../assets/images/foto final sobre nos .png" alt="Foto Início">
+          </div>
+          <div class="start-text">
+            <h2>Olho em Volta e Agradeço</h2>
+            <p>Deus é bom. </p>
+            <p>Cada conquista veio do esforço, da fé e da escolha de continuar.  
+            Não foi sorte. Foi constância.</p>
+            <p>A barbearia é o reflexo disso, de cada passo firme, mesmo nos dias difíceis. </p>
+          </div>
+        </div>
+      </section>
+
+
+
+    <div class="end-image">
+         <img src="../assets/images/barbeariaantiga.png" alt="barbearia antiga">
+    </div>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+            </div>
+          
+            <div class="footer-slogan">
+                <p>Não é só um corte, é a sua imagem e o meu trabalho</p>
+            </div>
+          
+            <div class="footer-social">
+                <h4>Nos acompanhe</h4>
+            <div class="social-icons">
+                <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/logo insta.png" alt="Instagram"></a>
+                <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/logo wpp.png" alt="Whatsapp"></a>
+            </div>
+                <p class="footer-contact">Contato: (12) 98135-2112</p>
+            </div>
+        </div>
+          
+        <div class="footer-bottom">
+            <p>&copy; 2025 Barbearia do Guel. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+
+    <script>
+  const menuToggle = document.getElementById("menuToggle");
+  const navbar = document.getElementById("navbar");
+
+  menuToggle.addEventListener("click", () => {
+    navbar.classList.toggle("active");
+    document.body.classList.toggle("no-scroll"); // 🔒 trava/destrava rolagem
+  });
+</script>
+  
+</body>
+</html>

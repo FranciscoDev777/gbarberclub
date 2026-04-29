@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Barbeiro</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Segoe UI, sans-serif;
+            background: #0d0d0d;
+            color: white;
+            margin: 0;
+        }
+
+        header {
+            padding: 25px;
+            background: #141414;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .container {
+            padding: 40px;
+        }
+
+        .cards {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            flex: 1;
+            background: #1a1a1a;
+            padding: 25px;
+            border-radius: 12px;
+            min-width: 0;
+        }
+
+        .card h3 {
+            margin: 0;
+            color: #aaa;
+            font-size: 16px;
+        }
+
+        .valor {
+            font-size: 32px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .tabela {
+            background: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .header-tabela {
+            display: grid;
+            grid-template-columns: 120px 100px 1fr 120px 100px 140px;
+            padding: 15px;
+            background: #202020;
+            font-weight: bold;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .linha {
+            display: grid;
+            grid-template-columns: 120px 100px 1fr 120px 100px 140px;
+            padding: 15px;
+            border-top: 1px solid #2a2a2a;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .status {
+            background: #2e7d32;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: inline-block;
+        }
+
+        .botao {
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .finalizar {
+            background: #2b7fff;
+            color: white;
+        }
+
+        .cancelar {
+            background: #ff4d4d;
+            color: white;
+        }
+
+        .acoes {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .campo-mobile {
+            display: contents;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .cards {
+                flex-direction: column;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .valor {
+                font-size: 28px;
+            }
+
+            .header-tabela {
+                display: none;
+            }
+
+            .tabela {
+                background: transparent;
+                border-radius: 0;
+                overflow: visible;
+            }
+
+            .linha {
+                display: block;
+                background: #1a1a1a;
+                border: 1px solid #2a2a2a;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 15px;
+            }
+
+            .campo-mobile {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                padding: 6px 0;
+                border-bottom: 1px solid #242424;
+            }
+
+            .campo-mobile:last-of-type {
+                border-bottom: none;
+            }
+
+            .label-mobile {
+                color: #aaa;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .valor-mobile {
+                text-align: right;
+                font-size: 14px;
+                word-break: break-word;
+            }
+
+            .acoes {
+                margin-top: 14px;
+                justify-content: flex-start;
+            }
+
+            .botao {
+                flex: 1;
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Painel do Barbeiro</h1>
+    </header>
+
+    <div class="container">
+
+        <div class="cards">
+            <div class="card">
+                <h3>Cortes Restantes</h3>
+                <div class="valor" id="restantes">0</div>
+            </div>
+
+            <div class="card">
+                <h3>Ganhos Hoje</h3>
+                <div class="valor">R$ <span id="ganhos">0</span></div>
+            </div>
+
+            <div class="card">
+                <h3>Ganhos Futuros</h3>
+                <div class="valor">R$ <span id="futuros">0</span></div>
+            </div>
+        </div>
+
+        <div class="tabela">
+            <div class="header-tabela">
+                <div>Data</div>
+                <div>Hora</div>
+                <div>Cliente</div>
+                <div>Serviço</div>
+                <div>Status</div>
+                <div>Ações</div>
+            </div>
+
+            <div id="lista"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const barbeiro = "gustavo"
+        const hoje = new Date().toISOString().split("T")[0]
+
+        async function carregar() {
+            const r = await fetch(`http://localhost:3000/agendamentos/${barbeiro}`)
+            const dados = await r.json()
+
+            let ganhos = 0
+            let futuros = 0
+            let restantes = 0
+
+            const lista = document.getElementById("lista")
+            lista.innerHTML = ""
+
+            dados.forEach(a => {
+                if (a.dia !== hoje) return
+
+                const valor = a.servico === "Corte + Barba" ? 50 : 30
+
+                if (a.status === "Finalizado") {
+                    ganhos += valor
+                } else {
+                    futuros += valor
+                    restantes++
+                }
+
+                const linha = document.createElement("div")
+                linha.className = "linha"
+
+                linha.innerHTML = `
+                    <div class="campo-mobile">
+                        <span class="label-mobile">Data:</span>
+                        <span class="valor-mobile">${a.dia}</span>
+                    </div>
+
+                    <div class="campo-mobile">
+                        <span class="label-mobile">Hora:</span>
+                        <span class="valor-mobile">${a.horario}</span>
+                    </div>
+
+                    <div class="campo-mobile">
+                        <span class="label-mobile">Cliente:</span>
+                        <span class="valor-mobile">${a.nome}</span>
+                    </div>
+
+                    <div class="campo-mobile">
+                        <span class="label-mobile">Serviço:</span>
+                        <span class="valor-mobile">${a.servico}</span>
+                    </div>
+
+                    <div class="campo-mobile">
+                        <span class="label-mobile">Status:</span>
+                        <span class="valor-mobile"><span class="status">${a.status}</span></span>
+                    </div>
+
+                    <div class="acoes">
+                        ${a.status !== "Finalizado" ? `
+                            <button class="botao finalizar" onclick="finalizar(${a.id})">
+                                Finalizar
+                            </button>
+                        ` : ""}
+
+                        <button class="botao cancelar" onclick="cancelar(${a.id})">
+                            Cancelar
+                        </button>
+                    </div>
+                `
+
+                lista.appendChild(linha)
+            })
+
+            document.getElementById("ganhos").textContent = ganhos
+            document.getElementById("futuros").textContent = futuros
+            document.getElementById("restantes").textContent = restantes
+        }
+
+        async function cancelar(id) {
+            console.log("Cancelando:", id)
+
+            await fetch(`http://localhost:3000/cancelar/${id}`, {
+                method: "DELETE"
+            })
+
+            carregar()
+        }
+
+        async function finalizar(id) {
+            console.log("Finalizando:", id)
+
+            await fetch(`http://localhost:3000/finalizar/${id}`, {
+                method: "PUT"
+            })
+
+            carregar()
+        }
+
+        carregar()
+        setInterval(carregar, 4000)
+    </script>
+
+</body>
+
+</html>

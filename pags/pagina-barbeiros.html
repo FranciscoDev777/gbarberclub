@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escolha seu Barbeiro</title>
+
+    <link rel="stylesheet" href="../styless.css">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: #0f0f0f;
+            color: white;
+        }
+
+        /* TÍTULO */
+
+        .titulo {
+            text-align: center;
+            margin-top: 120px;
+            margin-bottom: 40px;
+            font-size: 28px;
+            font-weight: 500;
+        }
+
+        /* CONTAINER */
+
+        .barbeiros-container {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+
+        /* CARD */
+
+        .barbeiro-card {
+            background: #1A1A1A;
+            border-radius: 18px;
+            padding: 20px;
+            width: 260px;
+            text-align: center;
+            transition: 0.3s;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .barbeiro-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        /* FOTO */
+
+        .barbeiro-card img {
+            width: 100%;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .barbeiro-card img:hover {
+            transform: scale(1.03);
+        }
+
+        /* TEXTO */
+
+        .barbeiro-card h2 {
+            margin-top: 15px;
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .barbeiro-card p {
+            margin-top: 5px;
+            color: #ccc;
+        }
+
+        /* INSTAGRAM */
+
+        .instagram {
+            margin-top: 15px;
+        }
+
+        .instagram img {
+            width: 75px;
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+
+        .instagram img:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        /* TEXTO FINAL */
+
+        .info {
+            text-align: center;
+            margin-top: 40px;
+            color: #aaa;
+            font-size: 15px;
+        }
+
+        /* RESPONSIVO */
+
+        @media (max-width:768px) {
+
+            .barbeiros-container {
+                gap: 30px;
+            }
+
+            .barbeiro-card {
+                width: 90%;
+                max-width: 300px;
+            }
+
+        }
+    </style>
+
+</head>
+
+<body>
+
+
+    <!-- HEADER -->
+
+    <header class="header">
+
+        <section>
+
+            <a href="../index.html" class="logo">
+                <img src="../assets/images/Logo.png">
+            </a>
+
+            <nav class="navbar">
+                <a href="../index.html">Home</a>
+                <a href="pagina-barbeiros.html">Agendamentos</a>
+                <a href="Sobre-Nós.html">Sobre Nós</a>
+                <a href="Portifólio.html">Portfólio</a>
+                <a href="Localização.html">Localização</a>
+            </nav>
+
+        </section>
+
+    </header>
+
+
+    <h1 class="titulo">Gostaria de cortar com:</h1>
+
+
+    <div class="barbeiros-container">
+
+
+        <!-- BARBEIRO 1 -->
+
+        <div class="barbeiro-card">
+
+            <a href="agendamentos-gustavo.html" class="foto-link">
+                <img src="../assets/images/foto gustavo.png" alt="foto do barbeiro gustavo">
+            </a>
+
+            <h2>Gustavo</h2>
+
+            <p>conheça:</p>
+
+            <div class="instagram">
+                <a href="https://instagram.com/" target="_blank">
+                    <img src="../assets/images/logo insta branca.png" alt="Instagram">
+                </a>
+            </div>
+
+        </div>
+
+
+        <!-- BARBEIRO 2 -->
+
+        <div class="barbeiro-card">
+
+            <a href="agendamentos-guel.html" class="foto-link">
+                <img src="../assets/images/foto guel.png" alt="foto do barbeiro guel">
+            </a>
+
+            <h2>Guel</h2>
+
+            <p>conheça:</p>
+
+            <div class="instagram">
+                <a href="https://instagram.com/" target="_blank">
+                    <img src="../assets/images/logo insta branca.png" alt="Instagram">
+                </a>
+            </div>
+
+        </div>
+
+
+    </div> <!-- FECHA CONTAINER -->
+
+
+    <p class="info">
+        Clique sobre a foto e escolha seu horário
+    </p>
+
+
+</body>
+
+</html>

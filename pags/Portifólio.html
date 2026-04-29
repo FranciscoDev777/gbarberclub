@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portifólio</title>
+    <link rel="stylesheet" href="../styless.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark">
+    <header class="header">
+        <section>
+            <a href="../index.html" class="logo">
+                <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+            </a>
+            <button class="menu-toggle" id="menuToggle">
+              &#9776;
+           </button>
+            <nav class="navbar" id="navbar">
+                <a href="../index.html">Home</a>
+                <a href="pagina-barbeiros.html">Agendamentos</a>
+                <a href="Sobre-Nós.html">Sobre Nós</a>
+                <a href="Portifólio.html">Portifólio</a>
+                <a href="Localização.html">Localização</a>
+                <a href="login-barbeiro.html">Área do Barbeiro</a>
+                <div class="social-icons2">
+                    <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/icons8-instagram-48 (1).png" alt="Instagram"></a>
+                    <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/icons8-whatsapp-48 (1).png" alt="Whatsapp"></a>
+                </div>
+            </nav>
+        </section>
+    </header>
+
+        <section class="galeria-wrapper">
+            <h2>Portfólio</h2> 
+            <div class="galeria-grid">
+                <img src="../assets/Cortes/Corte 1.jpg" alt="1">
+                <img src="../assets/Cortes/Corte 2.jpg" alt="2">
+                <img src="../assets/Cortes/Corte 3.jpg" alt="3">
+                <img src="../assets/Cortes/Corte 4.jpg" alt="4">
+                <img src="../assets/Cortes/Corte 5.jpg" alt="5">
+                <img src="../assets/Cortes/Corte 6.jpg" alt="6">
+                <img src="../assets/Cortes/Corte 7.jpg" alt="7">
+                <img src="../assets/Cortes/Corte 8.jpg" alt="8">
+                <img src="../assets/Cortes/Corte 9.jpg" alt="9">
+                <img src="../assets/Cortes/Corte 10.jpg" alt="10">
+                <img src="../assets/Cortes/Corte 11.jpg" alt="11">
+                <img src="../assets/Cortes/Corte 12.jpg" alt="12">
+                <img src="../assets/Cortes/corte 13.jpg" alt="13">
+                <img src="../assets/Cortes/corte 14.jpg" alt="14">
+                <img src="../assets/Cortes/Corte 15.jpg" alt="15">
+                <img src="../assets/Cortes/Corte 16.jpg" alt="16">
+                <img src="../assets/Cortes/Corte 17.jpg" alt="17">
+                <img src="../assets/Cortes/Corte 18.jpg" alt="18">
+                <img src="../assets/Cortes/Corte 19.jpg" alt="19">
+                <img src="../assets/Cortes/Corte 20.jpg" alt="20">
+            </div>
+        </section>
+
+
+
+<footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="../assets/images/G-Blacklogo.png" alt="Logo Barbearia do Guel">
+            </div>
+        
+            <div class="footer-slogan">
+                <p>Não é só um corte, é a sua imagem e o meu trabalho.</p>
+            </div>
+        
+            <div class="footer-social">
+                <h4>Nos acompanhe</h4>
+            <div class="social-icons">
+                <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/icons8-instagram-48 (1).png" alt="Instagram"></a>
+                <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/icons8-whatsapp-48 (1).png" alt="Whatsapp"></a>
+            </div>
+                <p class="footer-contact">Contato: (12) 98135-2112</p>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>&copy; 2025 Barbearia do Guel. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const menuToggle = document.getElementById("menuToggle");
+        const navbar = document.getElementById("navbar");
+
+    if (menuToggle && navbar) {
+    menuToggle.addEventListener("click", () => {
+        navbar.classList.toggle("active");
+        document.body.classList.toggle("no-scroll");
+    });
+  }
+});
+</script>
+
+</body>
+</html>

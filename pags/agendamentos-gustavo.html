@@ -1,0 +1,141 @@
+  <!DOCTYPE html>
+  <html lang="pt-BR">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendamentos</title>
+    <link rel="stylesheet" href="../styless.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="form">
+
+    <header class="header">
+      <section>
+        <a href="../index.html" class="logo">
+          <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+        </a>
+        <button class="menu-toggle" id="menuToggle">
+          &#9776;
+        </button>
+        <nav class="navbar" id="navbar">
+
+          <a href="../index.html">Home</a>
+          <a href="pagina-barbeiros.html">Agendamentos</a>
+          <a href="Sobre-Nós.html">Sobre Nós</a>
+          <a href="Portifólio.html">Portifólio</a>
+          <a href="Localização.html">Localização</a>
+          <a href="login-barbeiro.html">Área do Barbeiro</a>
+
+        </nav>
+      </section>
+    </header>
+
+
+    <main class="container">
+      <h1>Agende seu horário</h1>
+      <div class="centralizar">
+        <a href="formulario-agendamento-gustavo.html" class="btn-agendar">
+          Agendar Agora
+        </a>
+      </div>
+
+
+      <div class="dias-da-semana">
+        <div class="grade-dia">
+          <h2></h2>
+          <div class="grade-horarios">
+
+            <button class="btn horario livre" data-dia="6" data-hora="08:00">08:00</button>
+            <button class="btn horario livre" data-dia="6" data-hora="08:40">08:40</button>
+            <button class="btn horario livre" data-dia="6" data-hora="09:20">09:20</button>
+            <button class="btn horario livre" data-dia="6" data-hora="10:00">10:00</button>
+
+            <button class="btn horario livre" data-dia="6" data-hora="10:40">10:40</button>
+            <button class="btn horario livre" data-dia="6" data-hora="11:20">11:20</button>
+
+            <button class="btn horario livre" data-dia="6" data-hora="14:00">14:00</button>
+            <button class="btn horario livre" data-dia="6" data-hora="14:40">14:40</button>
+            <button class="btn horario livre" data-dia="6" data-hora="15:20">15:20</button>
+
+            <button class="btn horario livre" data-dia="6" data-hora="16:00">16:00</button>
+            <button class="btn horario livre" data-dia="6" data-hora="16:40">16:40</button>
+            <button class="btn horario livre" data-dia="6" data-hora="17:20">17:20</button>
+
+            <button class="btn horario livre" data-dia="6" data-hora="18:00">18:00</button>
+            <button class="btn horario livre" data-dia="6" data-hora="18:40">18:40</button>
+            <button class="btn horario livre" data-dia="6" data-hora="19:20">19:20</button>
+            <button class="btn horario livre" data-dia="6" data-hora="20:00">20:00</button>
+
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const menuToggle = document.getElementById("menuToggle")
+      const navbar = document.getElementById("navbar")
+      menuToggle.addEventListener("click", () => {
+        navbar.classList.toggle("active")
+      })
+    </script>
+
+
+    <script>
+      const barbeiro = "gustavo"
+      const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
+
+      function formatarDataISOlocal(data) {
+        const ano = data.getFullYear()
+        const mes = String(data.getMonth() + 1).padStart(2, "0")
+        const dia = String(data.getDate()).padStart(2, "0")
+        return `${ano}-${mes}-${dia}`
+      }
+
+      function getProximoSabado() {
+        const hoje = new Date()
+        const data = new Date(hoje)
+        const diff = (6 - hoje.getDay() + 7) % 7
+        data.setDate(hoje.getDate() + diff)
+        return data
+      }
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        const bloco = document.querySelector(".grade-dia")
+        const data = getProximoSabado()
+        const dataISO = formatarDataISOlocal(data)
+        const nomeDia = dias[6]
+        const dataFormatada = `${String(data.getDate()).padStart(2, "0")}/${String(data.getMonth() + 1).padStart(2, "0")}`
+        bloco.setAttribute("data-dataiso", dataISO)
+        bloco.querySelector("h2").innerHTML = `${nomeDia} - ${dataFormatada}`
+        const botoes = bloco.querySelectorAll(".horario")
+        botoes.forEach(btn => {
+          btn.setAttribute("data-dataiso", dataISO)
+        })
+        carregarHorarios()
+      })
+      async function carregarHorarios() {
+        try {
+          const bloco = document.querySelector(".grade-dia")
+          const dataISO = bloco.getAttribute("data-dataiso")
+          const r = await fetch(`http://localhost:3000/horarios-livres/${dataISO}/${barbeiro}`)
+          const horariosLivres = await r.json()
+          const botoes = document.querySelectorAll(".horario")
+
+          botoes.forEach(btn => {
+            const hora = btn.dataset.hora
+            if (!horariosLivres.includes(hora)) {
+              btn.classList.remove("livre")
+              btn.classList.add("reservado")
+              btn.disabled = true
+              btn.innerHTML = `<span style="opacity:0.6;">🔒 ${botao.dataset.hora}</span>`
+            }
+          })
+        } catch (e) {
+          console.log("Erro ao carregar horários", e)
+        }
+      }
+    </script>
+
+  </body>
+  </html>

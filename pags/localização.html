@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Localização</title>
+    <link rel="stylesheet" href="../styless.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark">
+    <header class="header">
+        <section>
+            <a href="../index.html" class="logo">
+                <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+            </a>
+
+            <button class="menu-toggle" id="menuToggle">
+              &#9776;
+           </button>
+
+            <nav class="navbar" id="navbar">
+                <a href="../index.html">Home</a>
+                <a href="pagina-barbeiros.html">Agendamentos</a>
+                <a href="Sobre-Nós.html">Sobre Nós</a>
+                <a href="Portifólio.html">Portifólio</a>
+                <a href="Localização.html">Localização</a>
+                <a href="./pags/login-barbeiro.html">Área do Barbeiro</a>
+                <div class="social-icons2">
+                  <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/logo insta.png" alt="Instagram"></a>
+                  <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/logo wpp.png" alt="Whatsapp"></a>
+                </div>
+            </nav>
+        </section>
+    </header>
+
+    <section class="localizacao">
+        <div class="localizacao-titulo">
+          <h2 class="titulo-local">Conheça Nosso Espaço</h2>
+          <p class="subtitulo-local">Veja como é a Barbearia do Guel por dentro e venha garantir seu corte!</p>
+          <a href="https://www.google.com/maps/place/Av.+Sete+de+Setembro,+645+-+Cruz,+Lorena,+SP"
+             class="endereco-link" target="_blank">
+             📍 Av. Sete de Setembro, 645 - Cruz, Lorena, SP
+          </a>
+        </div>
+      
+        <div class="fotos-barbearia">
+          <div class="foto">
+            <img src="../assets/images/ambiente2.png"alt="Foto da Barbearia do Guel 1">
+          </div>
+          <div class="foto">
+            <img src="../assets/images/ambiente3.png"alt="Foto da Barbearia do Guel 2">
+          </div>
+        </div>
+      
+        <div class="mapa-container">
+          <iframe
+            src= "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3679.7130653082663!2d-45.10844232468333!3d-22.738903979373596!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ccc92f6f56337f%3A0xc2a50edcb5a54518!2sAv.%20Sete%20de%20Setembro%2C%20645%20-%20Cruz%2C%20Lorena%20-%20SP%2C%2012606-150!5e0!3m2!1spt-BR!2sbr!4v1744533130936!5m2!1spt-BR!2sbr"
+            width="100%"
+            height="100%"
+            style="border:0;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade">
+          </iframe>
+        </div>
+      </section>
+    
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="../assets/images/Logo.png" alt="Logo Barbearia do Guel">
+            </div>
+          
+            <div class="footer-slogan">
+                <p>Não é só um corte, é a sua imagem e o meu trabalho </p>
+            </div>
+          
+            <div class="footer-social">
+                <h4>Nos acompanhe</h4>
+            <div class="social-icons">
+                <a href="https://www.instagram.com/gueldocorte_oficial/" target="_blank"><img src="../assets/images/logo insta.png" alt="Instagram"></a>
+                <a href="https://wa.me/5512981352112" target="_blank"><img src="../assets/images/logo wpp.png" alt="Whatsapp"></a>
+            </div>
+                <p class="footer-contact">Contato: (12) 98135-2112</p>
+            </div>
+        </div>
+          
+        <div class="footer-bottom">
+            <p>&copy; 2025 Barbearia do Guel. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+<script>
+  const menuToggle = document.getElementById("menuToggle");
+  const navbar = document.getElementById("navbar");
+
+  menuToggle.addEventListener("click", () => {
+    navbar.classList.toggle("active");
+    document.body.classList.toggle("no-scroll"); // 🔒 trava/destrava rolagem
+  });
+</script>
+</body>
+</html>
