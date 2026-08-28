@@ -253,13 +253,13 @@
 
 
   <script>
-
     document.addEventListener("DOMContentLoaded", () => {
 
       const form = document.getElementById("formulario")
       const nomeInput = document.getElementById("nome")
       const numeroInput = document.getElementById("numero")
       const diaSelect = document.getElementById("dia")
+      const servicoSelect = document.getElementById("servico")
 
       const horarioDropdown = document.getElementById("horarioDropdown")
       const horarioOptions = document.getElementById("horarioOptions")
@@ -272,14 +272,23 @@
 
       const mapaDeDatas = {}
 
+      // PREÇOS DOS SERVIÇOS
+      const precos = {
+        corte: 30,
+        corte_barba: 50
+      }
+
+      // NOMES DOS SERVIÇOS
+      const nomesServicos = {
+        corte: "Corte",
+        corte_barba: "Corte + Barba"
+      }
+
       function formatYMD(d) {
-
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-
       }
 
       function getProximaData(diaSemana) {
-
         const hoje = new Date()
         const diaAtual = hoje.getDay()
 
@@ -292,11 +301,9 @@
         futura.setDate(hoje.getDate() + delta)
 
         return futura
-
       }
 
       diasInfo.forEach(dia => {
-
         const dt = getProximaData(dia.numero)
 
         const opt = document.createElement("option")
@@ -307,7 +314,6 @@
         diaSelect.appendChild(opt)
 
         mapaDeDatas[dia.key] = formatYMD(dt)
-
       })
 
 
@@ -318,30 +324,51 @@
 
         horarioOptions.innerHTML = ""
         horarioSelected.textContent = "Carregando..."
+        horarioHiddenInput.value = ""
 
-        const res = await fetch(`http://localhost:3000/horarios-livres/${dataISO}/gustavo`)
-        const horarios = await res.json()
+        try {
 
-        horarioSelected.textContent = "Escolha seu horário"
+          const res = await fetch(
+            `http://localhost:3000/horarios-livres/${dataISO}/gustavo`
+          )
 
-        horarios.forEach(hor => {
+          const horarios = await res.json()
 
-          const div = document.createElement("div")
+          horarioSelected.textContent = "Escolha seu horário"
 
-          div.textContent = hor
+          if (horarios.length === 0) {
+            horarioSelected.textContent = "Nenhum horário disponível"
+            return
+          }
 
-          div.addEventListener("click", () => {
+          horarios.forEach(hor => {
 
-            horarioSelected.textContent = hor
-            horarioHiddenInput.value = hor
+            const div = document.createElement("div")
 
-            horarioOptions.classList.add("hidden")
+            div.textContent = hor
+
+            div.addEventListener("click", (event) => {
+
+              event.stopPropagation()
+
+              horarioSelected.textContent = hor
+              horarioHiddenInput.value = hor
+
+              horarioOptions.classList.add("hidden")
+
+            })
+
+            horarioOptions.appendChild(div)
 
           })
 
-          horarioOptions.appendChild(div)
+        } catch (erro) {
 
-        })
+          console.error("Erro ao carregar horários:", erro)
+
+          horarioSelected.textContent = "Erro ao carregar horários"
+
+        }
 
       })
 
@@ -357,15 +384,19 @@
 
         let v = numeroInput.value.replace(/\D/g, "")
 
-        if (v.length > 11) v = v.slice(0, 11)
+        if (v.length > 11) {
+          v = v.slice(0, 11)
+        }
 
         if (v.length > 6) {
 
-          numeroInput.value = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`
+          numeroInput.value =
+            `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`
 
         } else if (v.length > 2) {
 
-          numeroInput.value = `(${v.slice(0, 2)}) ${v.slice(2)}`
+          numeroInput.value =
+            `(${v.slice(0, 2)}) ${v.slice(2)}`
 
         } else {
 
@@ -385,23 +416,43 @@
         const dia = mapaDeDatas[diaSelect.value]
         const horario = horarioHiddenInput.value
 
-        if (!horario) return alert("Escolha um horário")
+        const servicoCodigo = servicoSelect.value
 
-        const sucesso = await agendar(nome, numero, dia, horario)
+        if (!servicoCodigo) {
+          return alert("Escolha um serviço")
+        }
+
+        if (!dia) {
+          return alert("Escolha um dia")
+        }
+
+        if (!horario) {
+          return alert("Escolha um horário")
+        }
+
+        const servico = nomesServicos[servicoCodigo]
+        const valor = precos[servicoCodigo]
+
+        const sucesso = await agendar(
+          nome,
+          numero,
+          dia,
+          horario,
+          servico,
+          valor
+        )
 
         if (sucesso) {
 
-          document.getElementById("confirmacaoAgendamento").classList.remove("hidden")
+          document
+            .getElementById("confirmacaoAgendamento")
+            .classList.remove("hidden")
 
           setTimeout(() => {
 
             window.location.href = "../index.html"
 
           }, 3000)
-
-        } else {
-
-          alert("Horário já ocupado")
 
         }
 
@@ -410,33 +461,75 @@
     })
 
 
-    async function agendar(nome, numero, dia, horario) {
+    async function agendar(
+      nome,
+      numero,
+      dia,
+      horario,
+      servico,
+      valor
+    ) {
 
       const barbeiro = "gustavo"
 
-      const r = await fetch("http://localhost:3000/agendar", {
+      try {
 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        const r = await fetch(
+          "http://localhost:3000/agendar",
+          {
+            method: "POST",
 
-        body: JSON.stringify({
+            headers: {
+              "Content-Type": "application/json"
+            },
 
+            body: JSON.stringify({
+
+              nome,
+              numero,
+              dia,
+              horario,
+              barbeiro,
+              servico,
+              valor
+
+            })
+
+          }
+        )
+
+        const j = await r.json()
+
+        if (!r.ok || j.sucesso !== true) {
+
+          alert(j.erro || j.mensagem || "Erro ao realizar agendamento")
+
+          return false
+
+        }
+
+        console.log("Agendamento enviado:", {
           nome,
-          numero,
+          servico,
+          valor,
+          barbeiro,
           dia,
-          horario,
-          barbeiro
-
+          horario
         })
 
-      })
+        return true
 
-      const j = await r.json()
+      } catch (erro) {
 
-      return j.sucesso === true
+        console.error("Erro ao agendar:", erro)
+
+        alert("Não foi possível conectar ao servidor")
+
+        return false
+
+      }
 
     }
-
   </script>
 
   <div id="confirmacaoAgendamento" class="confirmacao hidden">

@@ -4,13 +4,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Formulário de Agendamento</title>
 
   <link rel="stylesheet" href="../styless.css">
 
   <style>
     .confirmacao {
-
       position: fixed;
 
       top: 0;
@@ -34,27 +34,20 @@
       z-index: 9999;
 
       font-family: 'Poppins', sans-serif;
-
     }
 
     .confirmacao h2 {
-
       font-size: 32px;
       margin-bottom: 10px;
-
     }
 
     .confirmacao p {
-
       font-size: 18px;
       color: #aaa;
-
     }
 
     .hidden {
-
       display: none;
-
     }
 
     button[type="submit"] {
@@ -77,14 +70,12 @@
     }
 
     button[type="submit"]:hover {
-
       background: #8ecdf1;
       color: #000;
 
       transform: scale(1.02);
 
       box-shadow: 0 0 10px rgba(142, 205, 241, 0.6);
-
     }
 
     .custom-select-wrapper {
@@ -95,12 +86,18 @@
     .custom-select {
       position: relative;
       width: 100%;
+
       background: #1c1c1c;
+
       border: 2px solid #6baed6;
       border-radius: 12px;
+
       padding: 14px;
+
       cursor: pointer;
+
       color: white;
+
       transition: 0.2s;
     }
 
@@ -115,22 +112,32 @@
 
     .select-options {
       position: absolute;
+
       top: 105%;
       left: 0;
+
       width: 100%;
+
       background: #1c1c1c;
+
       border: 2px solid #6baed6;
       border-radius: 12px;
+
       max-height: 250px;
       overflow-y: auto;
+
       z-index: 999;
     }
 
     .select-options div {
       padding: 12px 14px;
+
       border-bottom: 1px solid #2a2a2a;
+
       cursor: pointer;
+
       color: white;
+
       transition: 0.15s;
     }
 
@@ -140,10 +147,6 @@
 
     .select-options div:last-child {
       border-bottom: none;
-    }
-
-    .hidden {
-      display: none;
     }
 
     .select-options::-webkit-scrollbar {
@@ -165,6 +168,7 @@
 <body class="form">
 
   <header class="header">
+
     <section>
 
       <a href="../index.html" class="logo">
@@ -176,7 +180,9 @@
       </nav>
 
     </section>
+
   </header>
+
 
   <main class="form">
 
@@ -184,28 +190,52 @@
 
       <h1>Agende seu horário</h1>
 
-      <label for="servico">Serviço</label>
+
+      <label for="servico">
+        Serviço
+      </label>
+
       <select id="servico" required>
 
-        <option value="" disabled selected hidden>Escolha o serviço</option>
+        <option value="" disabled selected hidden>
+          Escolha o serviço
+        </option>
 
-        <option value="corte">Corte R$30</option>
-        <option value="corte_barba">Corte + Barba R$50</option>
+        <option value="corte">
+          Corte R$30
+        </option>
+
+        <option value="corte_barba">
+          Corte + Barba R$50
+        </option>
 
       </select>
 
-      <label for="dia">Escolha o dia</label>
+
+      <label for="dia">
+        Escolha o dia
+      </label>
+
       <select id="dia" required>
-        <option value="" disabled selected hidden>Seu Dia</option>
+
+        <option value="" disabled selected hidden>
+          Seu Dia
+        </option>
+
       </select>
 
-      <label for="horario">Horários Disponíveis</label>
+
+      <label>
+        Horários Disponíveis
+      </label>
 
       <div class="custom-select-wrapper">
 
         <div class="custom-select" id="horarioDropdown">
 
-          <span class="selected">Escolha o Dia primeiro</span>
+          <span class="selected">
+            Escolha o Dia primeiro
+          </span>
 
           <div class="select-options hidden" id="horarioOptions"></div>
 
@@ -213,213 +243,700 @@
 
       </div>
 
+
       <input type="hidden" id="horarioHidden">
 
-      <label for="nome">Nome</label>
+
+      <label for="nome">
+        Nome
+      </label>
+
       <input type="text" id="nome" placeholder="Seu nome" required>
 
-      <label for="numero">Número (WhatsApp)</label>
+
+      <label for="numero">
+        Número (WhatsApp)
+      </label>
+
       <input type="text" id="numero" placeholder="(11) 91234-5678" required>
 
-      <button type="submit">Confirmar Agendamento</button>
+
+      <button type="submit">
+        Confirmar Agendamento
+      </button>
 
     </form>
 
   </main>
 
+
+  <div id="confirmacaoAgendamento" class="confirmacao hidden">
+
+    <h2>
+      ✔ Horário confirmado!
+    </h2>
+
+    <p>
+      Seu horário foi agendado com sucesso.
+    </p>
+
+  </div>
+
+
   <script>
+
+    // ==================================================
+    // ENDEREÇO DO BACKEND
+    // ==================================================
+
+    const API = `http://${window.location.hostname}:3000`
+
 
     document.addEventListener("DOMContentLoaded", () => {
 
-      const form = document.getElementById("formulario")
-      const nomeInput = document.getElementById("nome")
-      const numeroInput = document.getElementById("numero")
-      const diaSelect = document.getElementById("dia")
-      const servicoSelect = document.getElementById("servico")
+      const form =
+        document.getElementById("formulario")
 
-      const horarioDropdown = document.getElementById("horarioDropdown")
-      const horarioOptions = document.getElementById("horarioOptions")
-      const horarioHiddenInput = document.getElementById("horarioHidden")
-      const horarioSelected = horarioDropdown.querySelector(".selected")
+      const nomeInput =
+        document.getElementById("nome")
+
+      const numeroInput =
+        document.getElementById("numero")
+
+      const diaSelect =
+        document.getElementById("dia")
+
+      const servicoSelect =
+        document.getElementById("servico")
+
+      const horarioDropdown =
+        document.getElementById("horarioDropdown")
+
+      const horarioOptions =
+        document.getElementById("horarioOptions")
+
+      const horarioHiddenInput =
+        document.getElementById("horarioHidden")
+
+      const horarioSelected =
+        horarioDropdown.querySelector(".selected")
+
+
+      // ================================================
+      // DIAS QUE O GUEL TRABALHA
+      // ================================================
 
       const diasInfo = [
-        { key: "quarta", numero: 3, label: "Quarta-feira" },
-        { key: "quinta", numero: 4, label: "Quinta-feira" },
-        { key: "sexta", numero: 5, label: "Sexta-feira" },
-        { key: "sabado", numero: 6, label: "Sábado" }
+
+        {
+          key: "quarta",
+          numero: 3,
+          label: "Quarta-feira"
+        },
+
+        {
+          key: "quinta",
+          numero: 4,
+          label: "Quinta-feira"
+        },
+
+        {
+          key: "sexta",
+          numero: 5,
+          label: "Sexta-feira"
+        },
+
+        {
+          key: "sabado",
+          numero: 6,
+          label: "Sábado"
+        }
+
       ]
+
 
       const mapaDeDatas = {}
 
-      function formatYMD(d) {
 
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      // ================================================
+      // PREÇOS
+      // ================================================
+
+      const precos = {
+
+        corte: 30,
+
+        corte_barba: 50
 
       }
+
+
+      const nomesServicos = {
+
+        corte: "Corte",
+
+        corte_barba: "Corte + Barba"
+
+      }
+
+
+      // ================================================
+      // FORMATA DATA YYYY-MM-DD
+      // ================================================
+
+      function formatYMD(d) {
+
+        return (
+          `${d.getFullYear()}-` +
+          `${String(d.getMonth() + 1).padStart(2, "0")}-` +
+          `${String(d.getDate()).padStart(2, "0")}`
+        )
+
+      }
+
+
+      // ================================================
+      // DESCOBRE A PRÓXIMA DATA DO DIA DA SEMANA
+      // ================================================
 
       function getProximaData(diaSemana) {
 
         const hoje = new Date()
-        const diaAtual = hoje.getDay()
 
-        let delta = diaSemana - diaAtual
+        const diaAtual =
+          hoje.getDay()
 
-        if (delta < 0) delta += 7
+        let delta =
+          diaSemana - diaAtual
 
-        const futura = new Date()
 
-        futura.setDate(hoje.getDate() + delta)
+        if (delta < 0) {
+
+          delta += 7
+
+        }
+
+
+        const futura =
+          new Date()
+
+
+        futura.setDate(
+          hoje.getDate() + delta
+        )
+
 
         return futura
 
       }
 
+
+      // ================================================
+      // MONTA OS DIAS
+      // ================================================
+
       diasInfo.forEach(dia => {
 
-        const dt = getProximaData(dia.numero)
+        const dt =
+          getProximaData(dia.numero)
 
-        const opt = document.createElement("option")
 
-        opt.value = dia.key
-        opt.text = dia.label
+        const opt =
+          document.createElement("option")
+
+
+        opt.value =
+          dia.key
+
+
+        opt.text =
+          dia.label
+
 
         diaSelect.appendChild(opt)
 
-        mapaDeDatas[dia.key] = formatYMD(dt)
+
+        mapaDeDatas[dia.key] =
+          formatYMD(dt)
 
       })
 
-      diaSelect.addEventListener("change", async () => {
 
-        const diaKey = diaSelect.value
-        const dataISO = mapaDeDatas[diaKey]
+      // ================================================
+      // QUANDO ESCOLHER O DIA
+      // ================================================
 
-        horarioOptions.innerHTML = ""
-        horarioSelected.textContent = "Carregando..."
-        horarioHiddenInput.value = ""
+      diaSelect.addEventListener(
+        "change",
+        async () => {
 
-        const res = await fetch(`http://localhost:3000/horarios-livres/${dataISO}/guel`)
-        const horarios = await res.json()
+          const diaKey =
+            diaSelect.value
 
-        horarioSelected.textContent = "Escolha seu horário"
 
-        horarios.forEach(hor => {
+          const dataISO =
+            mapaDeDatas[diaKey]
 
-          const div = document.createElement("div")
 
-          div.textContent = hor
+          horarioOptions.innerHTML = ""
 
-          div.addEventListener("click", () => {
+          horarioSelected.textContent =
+            "Carregando..."
 
-            horarioSelected.textContent = hor
-            horarioHiddenInput.value = hor
 
-            horarioOptions.classList.add("hidden")
+          horarioHiddenInput.value = ""
 
-          })
 
-          horarioOptions.appendChild(div)
+          try {
 
-        })
+            // IMPORTANTE:
+            // consulta os horários livres do GUEL
 
-      })
+            const res = await fetch(
+              `${API}/horarios-livres/${dataISO}/guel`
+            )
 
-      horarioDropdown.addEventListener("click", () => {
 
-        horarioOptions.classList.toggle("hidden")
+            if (!res.ok) {
 
-      })
+              throw new Error(
+                "Erro ao consultar horários"
+              )
 
-      numeroInput.addEventListener("input", () => {
+            }
 
-        let v = numeroInput.value.replace(/\D/g, "")
 
-        if (v.length > 11) v = v.slice(0, 11)
+            const horarios =
+              await res.json()
 
-        if (v.length > 6) {
 
-          numeroInput.value = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`
+            horarioSelected.textContent =
+              "Escolha seu horário"
 
-        } else if (v.length > 2) {
 
-          numeroInput.value = `(${v.slice(0, 2)}) ${v.slice(2)}`
+            if (
+              !Array.isArray(horarios) ||
+              horarios.length === 0
+            ) {
 
-        } else {
+              horarioSelected.textContent =
+                "Nenhum horário disponível"
 
-          numeroInput.value = v
+              return
+
+            }
+
+
+            horarios.forEach(hor => {
+
+              const div =
+                document.createElement("div")
+
+
+              div.textContent =
+                hor
+
+
+              div.addEventListener(
+                "click",
+                event => {
+
+                  event.stopPropagation()
+
+
+                  horarioSelected.textContent =
+                    hor
+
+
+                  horarioHiddenInput.value =
+                    hor
+
+
+                  horarioOptions
+                    .classList
+                    .add("hidden")
+
+                }
+              )
+
+
+              horarioOptions
+                .appendChild(div)
+
+            })
+
+
+          } catch (erro) {
+
+            console.error(
+              "Erro ao carregar horários:",
+              erro
+            )
+
+
+            horarioSelected.textContent =
+              "Erro ao carregar horários"
+
+          }
 
         }
+      )
 
-      })
 
-      form.addEventListener("submit", async e => {
+      // ================================================
+      // ABRIR / FECHAR HORÁRIOS
+      // ================================================
 
-        e.preventDefault()
+      horarioDropdown.addEventListener(
+        "click",
+        () => {
 
-        const nome = nomeInput.value.trim()
-        const numero = numeroInput.value.trim()
-        const dia = mapaDeDatas[diaSelect.value]
-        const horario = horarioHiddenInput.value
-        const servico = servicoSelect.value
-
-        if (!horario) return alert("Escolha um horário")
-
-        const sucesso = await agendar(nome, numero, dia, horario, servico)
-
-        if (sucesso) {
-
-          document.getElementById("confirmacaoAgendamento").classList.remove("hidden")
-
-          setTimeout(() => {
-
-            window.location.href = "../index.html"
-
-          }, 3000)
-
-        } else {
-
-          alert("Horário já ocupado")
+          horarioOptions
+            .classList
+            .toggle("hidden")
 
         }
+      )
 
-      })
+
+      // ================================================
+      // FECHAR DROPDOWN CLICANDO FORA
+      // ================================================
+
+      document.addEventListener(
+        "click",
+        event => {
+
+          if (
+            !horarioDropdown.contains(
+              event.target
+            )
+          ) {
+
+            horarioOptions
+              .classList
+              .add("hidden")
+
+          }
+
+        }
+      )
+
+
+      // ================================================
+      // FORMATA TELEFONE
+      // ================================================
+
+      numeroInput.addEventListener(
+        "input",
+        () => {
+
+          let v =
+            numeroInput
+              .value
+              .replace(/\D/g, "")
+
+
+          if (v.length > 11) {
+
+            v =
+              v.slice(0, 11)
+
+          }
+
+
+          if (v.length > 6) {
+
+            numeroInput.value =
+              `(${v.slice(0, 2)}) ` +
+              `${v.slice(2, 7)}-` +
+              `${v.slice(7)}`
+
+          } else if (v.length > 2) {
+
+            numeroInput.value =
+              `(${v.slice(0, 2)}) ` +
+              `${v.slice(2)}`
+
+          } else {
+
+            numeroInput.value =
+              v
+
+          }
+
+        }
+      )
+
+
+      // ================================================
+      // ENVIA O AGENDAMENTO
+      // ================================================
+
+      form.addEventListener(
+        "submit",
+        async event => {
+
+          event.preventDefault()
+
+
+          const nome =
+            nomeInput.value.trim()
+
+
+          const numero =
+            numeroInput.value.trim()
+
+
+          const dia =
+            mapaDeDatas[diaSelect.value]
+
+
+          const horario =
+            horarioHiddenInput.value
+
+
+          const servicoCodigo =
+            servicoSelect.value
+
+
+          if (!servicoCodigo) {
+
+            alert(
+              "Escolha um serviço"
+            )
+
+            return
+
+          }
+
+
+          if (!dia) {
+
+            alert(
+              "Escolha um dia"
+            )
+
+            return
+
+          }
+
+
+          if (!horario) {
+
+            alert(
+              "Escolha um horário"
+            )
+
+            return
+
+          }
+
+
+          if (!nome) {
+
+            alert(
+              "Digite seu nome"
+            )
+
+            return
+
+          }
+
+
+          if (!numero) {
+
+            alert(
+              "Digite seu número"
+            )
+
+            return
+
+          }
+
+
+          const servico =
+            nomesServicos[
+            servicoCodigo
+            ]
+
+
+          const valor =
+            precos[
+            servicoCodigo
+            ]
+
+
+          const sucesso =
+            await agendar(
+              nome,
+              numero,
+              dia,
+              horario,
+              servico,
+              valor
+            )
+
+
+          if (sucesso) {
+
+            document
+              .getElementById(
+                "confirmacaoAgendamento"
+              )
+              .classList
+              .remove("hidden")
+
+
+            setTimeout(() => {
+
+              window.location.href =
+                "../index.html"
+
+            }, 3000)
+
+          }
+
+        }
+      )
 
     })
 
-    async function agendar(nome, numero, dia, horario, servico) {
 
-      const barbeiro = "guel"
+    // ==================================================
+    // SALVA NO BACKEND
+    // ==================================================
 
-      const r = await fetch("http://localhost:3000/agendar", {
+    async function agendar(
+      nome,
+      numero,
+      dia,
+      horario,
+      servico,
+      valor
+    ) {
 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      // MUITO IMPORTANTE:
+      // esse formulário é do Guel
 
-        body: JSON.stringify({
+      const barbeiro =
+        "guel"
 
-          nome,
-          numero,
-          dia,
-          horario,
-          barbeiro,
-          servico
 
-        })
+      try {
 
-      })
+        const resposta =
+          await fetch(
+            `${API}/agendar`,
+            {
 
-      const j = await r.json()
+              method: "POST",
 
-      return j.sucesso === true
+              headers: {
+
+                "Content-Type":
+                  "application/json"
+
+              },
+
+              body: JSON.stringify({
+
+                nome: nome,
+
+                numero: numero,
+
+                dia: dia,
+
+                horario: horario,
+
+                barbeiro: barbeiro,
+
+                servico: servico,
+
+                valor: valor
+
+              })
+
+            }
+          )
+
+
+        let dados = {}
+
+
+        try {
+
+          dados =
+            await resposta.json()
+
+        } catch (erro) {
+
+          dados = {}
+
+        }
+
+
+        if (
+          !resposta.ok ||
+          dados.sucesso !== true
+        ) {
+
+          alert(
+            dados.erro ||
+            dados.mensagem ||
+            "Erro ao realizar agendamento"
+          )
+
+          return false
+
+        }
+
+
+        console.log(
+          "AGENDAMENTO SALVO:",
+          {
+
+            nome: nome,
+
+            numero: numero,
+
+            barbeiro: barbeiro,
+
+            dia: dia,
+
+            horario: horario,
+
+            servico: servico,
+
+            valor: valor
+
+          }
+        )
+
+
+        return true
+
+
+      } catch (erro) {
+
+        console.error(
+          "Erro ao agendar:",
+          erro
+        )
+
+
+        alert(
+          "Não foi possível conectar ao servidor"
+        )
+
+
+        return false
+
+      }
 
     }
 
   </script>
-
-  <div id="confirmacaoAgendamento" class="confirmacao hidden">
-    <h2>✔ Horário confirmado!</h2>
-    <p>Seu horário foi agendado com sucesso.</p>
-  </div>
 
 </body>
 
