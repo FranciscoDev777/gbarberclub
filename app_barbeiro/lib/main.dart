@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
-const String api = 'http://10.133.126.27:3000';
+const String api = 'http://localhost:3000';
 
 const Color corFundo = Color(0xFF0F0F0F);
 const Color corCard = Color(0xFF1A1A1A);
@@ -835,7 +835,8 @@ class RedefinirSenhaPage extends StatefulWidget {
   });
 
   @override
-  State<RedefinirSenhaPage> createState() => _RedefinirSenhaPageState();
+  State<RedefinirSenhaPage> createState() =>
+      _RedefinirSenhaPageState();
 }
 
 class _RedefinirSenhaPageState extends State<RedefinirSenhaPage> {
@@ -913,7 +914,8 @@ class _RedefinirSenhaPageState extends State<RedefinirSenhaPage> {
       } else {
         mostrarMensagem(
           context,
-          dados['erro']?.toString() ?? 'Erro ao redefinir senha.',
+          dados['erro']?.toString() ??
+              'Erro ao redefinir senha.',
           erro: true,
         );
       }
@@ -1065,7 +1067,6 @@ class _RedefinirSenhaPageState extends State<RedefinirSenhaPage> {
     );
   }
 }
-
 // ======================================================
 // PAINEL
 // ======================================================
@@ -1088,6 +1089,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   List<dynamic> hoje = [];
   List<dynamic> semana = [];
   List<dynamic> fixos = [];
+  List<dynamic> bloqueios = [];
 
   int total = 0;
 
@@ -1154,6 +1156,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             '$api/app/fixos/${widget.barbeiro}',
           ),
         ),
+        http.get(
+          Uri.parse(
+            '$api/app/bloqueios/${widget.barbeiro}',
+          ),
+        ),
       ]);
 
       if (!mounted) return;
@@ -1178,6 +1185,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       if (respostas[3].statusCode == 200) {
         fixos = jsonDecode(respostas[3].body);
       }
+
+      if (respostas[4].statusCode == 200) {
+        bloqueios = jsonDecode(respostas[4].body);
+      }
     } catch (_) {}
 
     if (mounted) {
@@ -1186,6 +1197,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       });
     }
   }
+
+  // ====================================================
+  // FINALIZAR AGENDAMENTO
+  // ====================================================
 
   Future<void> finalizar(int id) async {
     try {
@@ -1219,6 +1234,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       );
     }
   }
+
+  // ====================================================
+  // CANCELAR AGENDAMENTO
+  // ====================================================
 
   Future<void> cancelar(int id) async {
     final confirmar = await showDialog<bool>(
@@ -1303,6 +1322,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
   }
 
+  // ====================================================
+  // EXCLUIR FIXO
+  // ====================================================
+
   Future<void> excluirFixo(dynamic item) async {
     final id = numeroInt(item['id']);
 
@@ -1328,7 +1351,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                   false,
                 );
               },
-              child: const Text('VOLTAR'),
+              child: const Text(
+                'VOLTAR',
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1341,7 +1366,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('EXCLUIR'),
+              child: const Text(
+                'EXCLUIR',
+              ),
             ),
           ],
         );
@@ -1392,11 +1419,139 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
   }
 
+  // ====================================================
+  // EXCLUIR BLOQUEIO
+  // ====================================================
+
+  Future<void> excluirBloqueio(dynamic item) async {
+    final id = numeroInt(item['id']);
+
+    final diaInteiro =
+        numeroInt(item['dia_inteiro']) == 1;
+
+    final dia = (item['dia'] ?? '').toString();
+    final horario = (item['horario'] ?? '').toString();
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: corCard,
+          title: const Text(
+            'Remover bloqueio',
+          ),
+          content: Text(
+            diaInteiro
+                ? 'Deseja desbloquear o dia ${formatarData(dia)} inteiro?'
+                : 'Deseja desbloquear ${formatarData(dia)} às $horario?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text(
+                'VOLTAR',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text(
+                'DESBLOQUEAR',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    try {
+      final resposta = await http.delete(
+        Uri.parse(
+          '$api/app/bloqueios/$id',
+        ),
+      );
+
+      dynamic dados = {};
+
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(
+          context,
+          dados['mensagem']?.toString() ??
+              'Bloqueio removido.',
+        );
+
+        await carregarTudo();
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ??
+              'Não foi possível remover o bloqueio.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      mostrarMensagem(
+        context,
+        'Não foi possível conectar ao servidor.',
+        erro: true,
+      );
+    }
+  }
+
+  // ====================================================
+  // ABRIR CADASTRO FIXO
+  // ====================================================
+
   Future<void> abrirCadastroFixo() async {
     final cadastrado = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => CadastroFixoPage(
+          barbeiro: widget.barbeiro,
+          nomeBarbeiro: widget.nome,
+        ),
+      ),
+    );
+
+    if (cadastrado == true) {
+      await carregarTudo();
+    }
+  }
+
+  // ====================================================
+  // ABRIR CADASTRO BLOQUEIO
+  // ====================================================
+
+  Future<void> abrirCadastroBloqueio() async {
+    final cadastrado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CadastroBloqueioPage(
           barbeiro: widget.barbeiro,
           nomeBarbeiro: widget.nome,
         ),
@@ -1414,6 +1569,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       'Hoje',
       'Semana',
       'Horários fixos',
+      'Bloqueios',
     ];
 
     return Scaffold(
@@ -1499,6 +1655,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           ),
         ),
       ),
+
       body: carregando
           ? const Center(
               child: CircularProgressIndicator(
@@ -1509,7 +1666,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
               ? telaHoje()
               : pagina == 1
                   ? telaSemana()
-                  : telaFixos(),
+                  : pagina == 2
+                      ? telaFixos()
+                      : telaBloqueios(),
+
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF151515),
         indicatorColor: const Color(0xFF263B45),
@@ -1550,10 +1710,24 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             ),
             label: 'Fixos',
           ),
+          NavigationDestination(
+            icon: Icon(
+              Icons.block_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.block,
+              color: corAzul,
+            ),
+            label: 'Bloqueios',
+          ),
         ],
       ),
     );
   }
+
+  // ====================================================
+  // TELA HOJE
+  // ====================================================
 
   Widget telaHoje() {
     return RefreshIndicator(
@@ -1577,7 +1751,6 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
               final largura = constraints.maxWidth;
 
               int colunas;
-
               double proporcao;
 
               if (largura >= 900) {
@@ -1597,12 +1770,14 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 mainAxisSpacing: 10,
                 childAspectRatio: proporcao,
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
+                physics:
+                    const NeverScrollableScrollPhysics(),
                 children: [
                   cardResumo(
                     titulo: 'Agendamentos',
                     valor: '$total',
-                    icone: Icons.calendar_month_outlined,
+                    icone:
+                        Icons.calendar_month_outlined,
                     cor: corAzul,
                   ),
                   cardResumo(
@@ -1614,7 +1789,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                   cardResumo(
                     titulo: 'Recebido',
                     valor: dinheiro(recebido),
-                    icone: Icons.check_circle_outline,
+                    icone:
+                        Icons.check_circle_outline,
                     cor: Colors.greenAccent,
                   ),
                   cardResumo(
@@ -1662,6 +1838,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     );
   }
 
+  // ====================================================
+  // TELA SEMANA
+  // ====================================================
+
   Widget telaSemana() {
     return RefreshIndicator(
       color: corAzul,
@@ -1703,6 +1883,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       ),
     );
   }
+
+  // ====================================================
+  // TELA FIXOS
+  // ====================================================
 
   Widget telaFixos() {
     return RefreshIndicator(
@@ -1763,6 +1947,73 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     );
   }
 
+  // ====================================================
+  // TELA BLOQUEIOS
+  // ====================================================
+
+  Widget telaBloqueios() {
+    return RefreshIndicator(
+      color: corAzul,
+      onRefresh: carregarTudo,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'Bloqueios da agenda',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          const Text(
+            'Bloqueie horários ou um dia inteiro para impedir novos agendamentos pelo site.',
+            style: TextStyle(
+              color: corTextoSecundario,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            height: 53,
+            child: ElevatedButton.icon(
+              onPressed: abrirCadastroBloqueio,
+              style: botaoPrincipal(),
+              icon: const Icon(
+                Icons.add,
+              ),
+              label: const Text(
+                'NOVO BLOQUEIO',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          if (bloqueios.isEmpty)
+            mensagemVazia(
+              'Nenhum bloqueio cadastrado.',
+            ),
+
+          ...bloqueios.map(
+            (item) => cardBloqueio(item),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ====================================================
+  // MENSAGEM VAZIA
+  // ====================================================
+
   Widget mensagemVazia(String texto) {
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -1798,6 +2049,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       ),
     );
   }
+
+  // ====================================================
+  // CARD RESUMO
+  // ====================================================
 
   Widget cardResumo({
     required String titulo,
@@ -1837,8 +2092,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   titulo,
@@ -1872,20 +2129,41 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     );
   }
 
+  // ====================================================
+  // CARD AGENDAMENTO
+  // ====================================================
+
   Widget cardAgendamento(
     dynamic item, {
     bool mostrarData = false,
   }) {
     final finalizado =
-        (item['status'] ?? '').toString().toLowerCase() == 'finalizado';
+        (item['status'] ?? '')
+            .toString()
+            .toLowerCase() ==
+        'finalizado';
 
-    final fixo = numeroInt(item['fixo']) == 1;
+    final fixo =
+        numeroInt(item['fixo']) == 1;
 
-    final nome = (item['nome'] ?? '').toString();
-    final numero = (item['numero'] ?? '').toString().trim();
-    final horario = (item['horario'] ?? '').toString();
-    final servico = (item['servico'] ?? '').toString().trim();
-    final dia = (item['dia'] ?? '').toString();
+    final nome =
+        (item['nome'] ?? '').toString();
+
+    final numero =
+        (item['numero'] ?? '')
+            .toString()
+            .trim();
+
+    final horario =
+        (item['horario'] ?? '').toString();
+
+    final servico =
+        (item['servico'] ?? '')
+            .toString()
+            .trim();
+
+    final dia =
+        (item['dia'] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.only(
@@ -1901,9 +2179,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       child: Padding(
         padding: const EdgeInsets.all(15),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
-            if (mostrarData && dia.isNotEmpty) ...[
+            if (mostrarData &&
+                dia.isNotEmpty) ...[
               Text(
                 formatarData(dia),
                 style: const TextStyle(
@@ -1915,16 +2195,20 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             ],
 
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Container(
                   width: 62,
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF202A2F),
-                    borderRadius: BorderRadius.circular(11),
+                    color:
+                        const Color(0xFF202A2F),
+                    borderRadius:
+                        BorderRadius.circular(11),
                   ),
                   child: Text(
                     horario,
@@ -1941,36 +2225,48 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               nome,
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 17,
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
                           ),
 
                           if (fixo)
                             Container(
-                              padding: const EdgeInsets.symmetric(
+                              padding:
+                                  const EdgeInsets.symmetric(
                                 horizontal: 8,
                                 vertical: 4,
                               ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF22343D),
-                                borderRadius: BorderRadius.circular(20),
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    const Color(
+                                  0xFF22343D,
+                                ),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  20,
+                                ),
                               ),
                               child: const Text(
                                 'FIXO',
                                 style: TextStyle(
                                   color: corAzul,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -1982,7 +2278,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                         Text(
                           numero,
                           style: const TextStyle(
-                            color: corTextoSecundario,
+                            color:
+                                corTextoSecundario,
                             fontSize: 13,
                           ),
                         ),
@@ -2002,11 +2299,14 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
                       Text(
                         dinheiro(
-                          numeroDouble(item['valor']),
+                          numeroDouble(
+                            item['valor'],
+                          ),
                         ),
                         style: const TextStyle(
                           color: corAzul,
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
                     ],
@@ -2020,15 +2320,19 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             if (finalizado)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
+                padding:
+                    const EdgeInsets.symmetric(
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF183126),
-                  borderRadius: BorderRadius.circular(10),
+                  color:
+                      const Color(0xFF183126),
+                  borderRadius:
+                      BorderRadius.circular(10),
                 ),
                 child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.check_circle,
@@ -2039,8 +2343,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     Text(
                       'FINALIZADO',
                       style: TextStyle(
-                        color: Colors.greenAccent,
-                        fontWeight: FontWeight.bold,
+                        color:
+                            Colors.greenAccent,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
                   ],
@@ -2053,7 +2359,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         finalizar(
-                          numeroInt(item['id']),
+                          numeroInt(
+                            item['id'],
+                          ),
                         );
                       },
                       style: botaoPrincipal(),
@@ -2064,7 +2372,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                       label: const Text(
                         'Finalizar',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
                     ),
@@ -2082,12 +2391,16 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                             }
                           : () {
                               cancelar(
-                                numeroInt(item['id']),
+                                numeroInt(
+                                  item['id'],
+                                ),
                               );
                             },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                            fixo ? corAzul : Colors.red.shade300,
+                      style:
+                          OutlinedButton.styleFrom(
+                        foregroundColor: fixo
+                            ? corAzul
+                            : Colors.red.shade300,
                         side: BorderSide(
                           color: fixo
                               ? corAzul
@@ -2095,7 +2408,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                         ),
                       ),
                       child: Text(
-                        fixo ? 'Ver Fixos' : 'Cancelar',
+                        fixo
+                            ? 'Ver Fixos'
+                            : 'Cancelar',
                       ),
                     ),
                   ),
@@ -2107,11 +2422,27 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     );
   }
 
+  // ====================================================
+  // CARD FIXO
+  // ====================================================
+
   Widget cardFixo(dynamic item) {
-    final nome = (item['nome'] ?? '').toString();
-    final numero = (item['numero'] ?? '').toString().trim();
-    final servico = (item['servico'] ?? '').toString().trim();
-    final horario = (item['horario'] ?? '').toString();
+    final nome =
+        (item['nome'] ?? '').toString();
+
+    final numero =
+        (item['numero'] ?? '')
+            .toString()
+            .trim();
+
+    final servico =
+        (item['servico'] ?? '')
+            .toString()
+            .trim();
+
+    final horario =
+        (item['horario'] ?? '')
+            .toString();
 
     final diaSemana = numeroInt(
       item['dia_semana'],
@@ -2137,8 +2468,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF22343D),
-                  borderRadius: BorderRadius.circular(12),
+                  color:
+                      const Color(0xFF22343D),
+                  borderRadius:
+                      BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.event_repeat,
@@ -2150,13 +2483,15 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       nome,
                       style: const TextStyle(
                         fontSize: 17,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -2164,7 +2499,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                       '${nomeDiaSemana(diaSemana)} • $horario',
                       style: const TextStyle(
                         color: corAzul,
-                        fontWeight: FontWeight.w600,
+                        fontWeight:
+                            FontWeight.w600,
                       ),
                     ),
                   ],
@@ -2220,8 +2556,111 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       ),
     );
   }
-}
 
+  // ====================================================
+  // CARD BLOQUEIO
+  // ====================================================
+
+  Widget cardBloqueio(dynamic item) {
+    final dia =
+        (item['dia'] ?? '').toString();
+
+    final horario =
+        (item['horario'] ?? '').toString();
+
+    final motivo =
+        (item['motivo'] ?? '')
+            .toString()
+            .trim();
+
+    final diaInteiro =
+        numeroInt(item['dia_inteiro']) == 1;
+
+    return Container(
+      margin: const EdgeInsets.only(
+        bottom: 11,
+      ),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: const Color(0xFF2B2B2B),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF382126),
+              borderRadius:
+                  BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.block,
+              color: Colors.redAccent,
+            ),
+          ),
+
+          const SizedBox(width: 13),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatarData(dia),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  diaInteiro
+                      ? 'DIA INTEIRO'
+                      : 'Horário: $horario',
+                  style: const TextStyle(
+                    color: corAzul,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+
+                if (motivo.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    motivo,
+                    style: const TextStyle(
+                      color:
+                          corTextoSecundario,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          IconButton(
+            tooltip: 'Desbloquear',
+            onPressed: () {
+              excluirBloqueio(item);
+            },
+            icon: const Icon(
+              Icons.delete_outline,
+            ),
+            color: Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+}
 // ======================================================
 // CADASTRAR FIXO
 // ======================================================
@@ -2655,22 +3094,639 @@ class _CadastroFixoPageState extends State<CadastroFixoPage> {
   }
 }
 
+// ======================================================
+// CADASTRAR BLOQUEIO
+// ======================================================
+
+class CadastroBloqueioPage extends StatefulWidget {
+  final String barbeiro;
+  final String nomeBarbeiro;
+
+  const CadastroBloqueioPage({
+    super.key,
+    required this.barbeiro,
+    required this.nomeBarbeiro,
+  });
+
+  @override
+  State<CadastroBloqueioPage> createState() =>
+      _CadastroBloqueioPageState();
+}
+
+class _CadastroBloqueioPageState
+    extends State<CadastroBloqueioPage> {
+  final motivoController = TextEditingController();
+
+  final List<String> horarios = const [
+    '08:00',
+    '08:40',
+    '09:20',
+    '10:00',
+    '10:40',
+    '11:20',
+    '12:00',
+    '12:40',
+    '13:20',
+    '14:00',
+    '14:40',
+    '15:20',
+    '16:00',
+    '16:40',
+    '17:20',
+    '18:00',
+    '18:40',
+    '19:20',
+    '20:00',
+  ];
+
+  DateTime? dataSelecionada;
+
+  bool diaInteiro = false;
+  bool carregando = false;
+
+  final Set<String> horariosSelecionados = {};
+
+  bool barbeiroTrabalha(DateTime data) {
+    final barbeiro =
+        widget.barbeiro.trim().toLowerCase();
+
+    final diaSemana = data.weekday;
+
+    if (barbeiro == 'gustavo') {
+      return diaSemana == DateTime.saturday;
+    }
+
+    if (barbeiro == 'guel') {
+      return diaSemana >= DateTime.wednesday &&
+          diaSemana <= DateTime.saturday;
+    }
+
+    return true;
+  }
+
+  String formatarDataBackend(DateTime data) {
+    final ano = data.year.toString().padLeft(4, '0');
+
+    final mes =
+        data.month.toString().padLeft(2, '0');
+
+    final dia =
+        data.day.toString().padLeft(2, '0');
+
+    return '$ano-$mes-$dia';
+  }
+
+  String formatarDataTela(DateTime data) {
+    final dia =
+        data.day.toString().padLeft(2, '0');
+
+    final mes =
+        data.month.toString().padLeft(2, '0');
+
+    return '$dia/$mes/${data.year}';
+  }
+
+  Future<void> escolherData() async {
+    final agora = DateTime.now();
+
+    DateTime inicial = dataSelecionada ?? agora;
+
+    while (!barbeiroTrabalha(inicial)) {
+      inicial = inicial.add(
+        const Duration(days: 1),
+      );
+    }
+
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: DateTime(
+        agora.year,
+        agora.month,
+        agora.day,
+      ),
+      lastDate: DateTime(
+        agora.year + 2,
+      ),
+      selectableDayPredicate: barbeiroTrabalha,
+      helpText: 'Selecione o dia',
+      cancelText: 'CANCELAR',
+      confirmText: 'SELECIONAR',
+    );
+
+    if (escolhida == null) {
+      return;
+    }
+
+    setState(() {
+      dataSelecionada = escolhida;
+    });
+  }
+
+  Future<void> salvarBloqueio() async {
+    if (dataSelecionada == null) {
+      mostrarMensagem(
+        context,
+        'Selecione uma data.',
+        erro: true,
+      );
+
+      return;
+    }
+
+    if (!diaInteiro &&
+        horariosSelecionados.isEmpty) {
+      mostrarMensagem(
+        context,
+        'Selecione pelo menos um horário.',
+        erro: true,
+      );
+
+      return;
+    }
+
+    setState(() {
+      carregando = true;
+    });
+
+    final motivo =
+        motivoController.text.trim();
+
+    final dia =
+        formatarDataBackend(dataSelecionada!);
+
+    try {
+      final Map<String, dynamic> corpo;
+
+      if (diaInteiro) {
+        corpo = {
+          'barbeiro': widget.barbeiro,
+          'dia': dia,
+          'dia_inteiro': true,
+          'motivo': motivo,
+        };
+      } else {
+        final lista =
+            horariosSelecionados.toList()
+              ..sort();
+
+        corpo = {
+          'barbeiro': widget.barbeiro,
+          'dia': dia,
+          'horarios': lista,
+          'dia_inteiro': false,
+          'motivo': motivo,
+        };
+      }
+
+      final resposta = await http.post(
+        Uri.parse(
+          '$api/app/bloqueios',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(corpo),
+      );
+
+      dynamic dados = {};
+
+      try {
+        dados = jsonDecode(
+          resposta.body,
+        );
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(
+          context,
+          dados['mensagem']?.toString() ??
+              'Bloqueio criado com sucesso!',
+        );
+
+        await Future.delayed(
+          const Duration(milliseconds: 500),
+        );
+
+        if (mounted) {
+          Navigator.pop(
+            context,
+            true,
+          );
+        }
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ??
+              'Não foi possível criar o bloqueio.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      mostrarMensagem(
+        context,
+        'Não foi possível conectar ao servidor.',
+        erro: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          carregando = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    motivoController.dispose();
+
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Novo bloqueio',
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 550,
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: logoGBarber(
+                      tamanho: 95,
+                      mostrarNome: false,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: corCard,
+                      borderRadius:
+                          BorderRadius.circular(15),
+                      border: Border.all(
+                        color:
+                            const Color(0xFF303030),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.content_cut,
+                          color: corAzul,
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Text(
+                            'Barbeiro: ${widget.nomeBarbeiro}',
+                            style: const TextStyle(
+                              fontWeight:
+                                  FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    'Data do bloqueio',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  InkWell(
+                    borderRadius:
+                        BorderRadius.circular(14),
+                    onTap: escolherData,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 17,
+                      ),
+                      decoration: BoxDecoration(
+                        color: corCard,
+                        borderRadius:
+                            BorderRadius.circular(14),
+                        border: Border.all(
+                          color:
+                              const Color(0xFF333333),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_month,
+                            color: corAzul,
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Text(
+                              dataSelecionada ==
+                                      null
+                                  ? 'Selecionar data'
+                                  : formatarDataTela(
+                                      dataSelecionada!,
+                                    ),
+                              style: TextStyle(
+                                color:
+                                    dataSelecionada ==
+                                            null
+                                        ? corTextoSecundario
+                                        : Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+
+                          const Icon(
+                            Icons.chevron_right,
+                            color:
+                                corTextoSecundario,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: corCard,
+                      borderRadius:
+                          BorderRadius.circular(14),
+                      border: Border.all(
+                        color:
+                            const Color(0xFF333333),
+                      ),
+                    ),
+                    child: SwitchListTile(
+                      contentPadding:
+                          EdgeInsets.zero,
+                      activeColor: corAzul,
+                      title: const Text(
+                        'Bloquear o dia inteiro',
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Nenhum cliente poderá marcar neste dia',
+                        style: TextStyle(
+                          color:
+                              corTextoSecundario,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: diaInteiro,
+                      onChanged: (valor) {
+                        setState(() {
+                          diaInteiro = valor;
+
+                          if (valor) {
+                            horariosSelecionados
+                                .clear();
+                          }
+                        });
+                      },
+                    ),
+                  ),
+
+                  if (!diaInteiro) ...[
+                    const SizedBox(height: 22),
+
+                    const Text(
+                      'Horários para bloquear',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    const Text(
+                      'Você pode selecionar vários horários.',
+                      style: TextStyle(
+                        color:
+                            corTextoSecundario,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    Wrap(
+                      spacing: 9,
+                      runSpacing: 9,
+                      children:
+                          horarios.map((horario) {
+                        final selecionado =
+                            horariosSelecionados
+                                .contains(horario);
+
+                        return FilterChip(
+                          label: Text(
+                            horario,
+                          ),
+                          selected:
+                              selecionado,
+                          showCheckmark: true,
+                          selectedColor:
+                              const Color(
+                            0xFF24404E,
+                          ),
+                          checkmarkColor:
+                              corAzul,
+                          side: BorderSide(
+                            color:
+                                selecionado
+                                    ? corAzul
+                                    : const Color(
+                                        0xFF3A3A3A,
+                                      ),
+                          ),
+                          labelStyle:
+                              TextStyle(
+                            color:
+                                selecionado
+                                    ? corAzul
+                                    : Colors.white,
+                            fontWeight:
+                                selecionado
+                                    ? FontWeight
+                                        .bold
+                                    : FontWeight
+                                        .normal,
+                          ),
+                          onSelected:
+                              (valor) {
+                            setState(() {
+                              if (valor) {
+                                horariosSelecionados
+                                    .add(
+                                  horario,
+                                );
+                              } else {
+                                horariosSelecionados
+                                    .remove(
+                                  horario,
+                                );
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+
+                    if (horariosSelecionados
+                        .isNotEmpty) ...[
+                      const SizedBox(height: 14),
+
+                      Text(
+                        '${horariosSelecionados.length} horário(s) selecionado(s)',
+                        style: const TextStyle(
+                          color: corAzul,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+
+                  const SizedBox(height: 22),
+
+                  TextField(
+                    controller:
+                        motivoController,
+                    textCapitalization:
+                        TextCapitalization
+                            .sentences,
+                    maxLines: 3,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Motivo do bloqueio (opcional)',
+                      alignLabelWithHint: true,
+                      prefixIcon: Icon(
+                        Icons.notes_outlined,
+                      ),
+                      hintText:
+                          'Ex: compromisso, folga, médico...',
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  SizedBox(
+                    height: 55,
+                    child:
+                        ElevatedButton.icon(
+                      onPressed: carregando
+                          ? null
+                          : salvarBloqueio,
+                      style:
+                          botaoPrincipal(),
+                      icon: carregando
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color:
+                                    Colors.black,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.block,
+                            ),
+                      label: Text(
+                        carregando
+                            ? 'SALVANDO...'
+                            : 'SALVAR BLOQUEIO',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ======================================================
+// FUNÇÕES AUXILIARES
+// ======================================================
+
 String nomeDiaSemana(int dia) {
   switch (dia) {
     case 0:
       return 'Domingo';
+
     case 1:
       return 'Segunda-feira';
+
     case 2:
       return 'Terça-feira';
+
     case 3:
       return 'Quarta-feira';
+
     case 4:
       return 'Quinta-feira';
+
     case 5:
       return 'Sexta-feira';
+
     case 6:
       return 'Sábado';
+
     default:
       return 'Dia inválido';
   }
