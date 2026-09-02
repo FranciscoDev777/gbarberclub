@@ -5,9 +5,29 @@ const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const admin = require("firebase-admin");
 
 const app = express();
 const PORT = 3000;
+
+// ======================================================
+// FIREBASE ADMIN - NOTIFICAÇÕES PUSH
+// ======================================================
+
+let firebasePushAtivo = false;
+
+try {
+  const serviceAccount = require("./firebase-service-account.json");
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+
+  firebasePushAtivo = true;
+  console.log("Firebase Admin conectado!");
+} catch (erro) {
+  console.log("AVISO: Firebase Admin não foi iniciado:", erro.message);
+}
 
 // ======================================================
 // MIDDLEWARES
@@ -123,6 +143,19 @@ db.run(`
     expira_em INTEGER NOT NULL,
     usado INTEGER DEFAULT 0,
     FOREIGN KEY (barbeiro_id) REFERENCES barbeiros(id)
+  )
+`);
+
+// ======================================================
+// TABELA DE DISPOSITIVOS PUSH
+// ======================================================
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS dispositivos_push (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    barbeiro TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    atualizado_em INTEGER NOT NULL
   )
 `);
 
@@ -264,6 +297,105 @@ function gerarCodigo() {
 
 function hashCodigo(codigo) {
   return crypto.createHash("sha256").update(codigo).digest("hex");
+}
+
+// ======================================================
+// ENVIAR NOTIFICAÇÃO DE NOVO AGENDAMENTO
+// ======================================================
+
+async function enviarNotificacaoNovoAgendamento({
+  id,
+  barbeiro,
+  nome,
+  dia,
+  horario,
+  servico,
+}) {
+  if (!firebasePushAtivo) {
+    return;
+  }
+
+  const tokens = await new Promise((resolve, reject) => {
+    db.all(
+      `
+        SELECT token
+        FROM dispositivos_push
+        WHERE barbeiro = ?
+      `,
+      [normalizarBarbeiro(barbeiro)],
+      (erro, registros) => {
+        if (erro) {
+          reject(erro);
+          return;
+        }
+
+        resolve(
+          registros
+            .map((item) => String(item.token || "").trim())
+            .filter((item) => item),
+        );
+      },
+    );
+  });
+
+  if (tokens.length === 0) {
+    console.log(`Nenhum dispositivo push cadastrado para ${barbeiro}.`);
+    return;
+  }
+
+  const mensagem = {
+    tokens,
+    notification: {
+      title: "Novo agendamento",
+      body: `${nome} - ${horario}${servico ? ` - ${servico}` : ""}`,
+    },
+    data: {
+      tipo: "novo_agendamento",
+      agendamentoId: String(id),
+      barbeiro: String(barbeiro),
+      dia: String(dia || ""),
+      horario: String(horario || ""),
+    },
+    android: {
+      priority: "high",
+      notification: {
+        sound: "default",
+      },
+    },
+  };
+
+  const resposta = await admin.messaging().sendEachForMulticast(mensagem);
+
+  console.log(
+    `Push enviado para ${barbeiro}: ${resposta.successCount} sucesso(s), ${resposta.failureCount} falha(s).`,
+  );
+
+  const tokensInvalidos = [];
+
+  resposta.responses.forEach((resultado, indice) => {
+    if (resultado.success) {
+      return;
+    }
+
+    const codigo = resultado.error?.code || "";
+
+    if (
+      codigo === "messaging/registration-token-not-registered" ||
+      codigo === "messaging/invalid-registration-token"
+    ) {
+      tokensInvalidos.push(tokens[indice]);
+    }
+  });
+
+  for (const token of tokensInvalidos) {
+    db.run(
+      `
+        DELETE FROM dispositivos_push
+        WHERE token = ?
+      `,
+      [token],
+    );
+  }
 }
 
 // ======================================================
@@ -427,6 +559,52 @@ app.post("/app/login", (req, res) => {
         barbeiro: barbeiro.usuario,
         nome: barbeiro.nome,
         email: barbeiro.email,
+      });
+    },
+  );
+});
+
+// ======================================================
+// REGISTRAR TOKEN DE NOTIFICAÇÃO DO BARBEIRO
+// ======================================================
+
+app.post("/app/push-token", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.body.barbeiro);
+  const token = String(req.body.token || "").trim();
+
+  if (!barbeiro || !token) {
+    return res.status(400).json({
+      erro: "Barbeiro e token são obrigatórios.",
+    });
+  }
+
+  db.run(
+    `
+      INSERT INTO dispositivos_push
+      (
+        barbeiro,
+        token,
+        atualizado_em
+      )
+      VALUES (?, ?, ?)
+      ON CONFLICT(token)
+      DO UPDATE SET
+        barbeiro = excluded.barbeiro,
+        atualizado_em = excluded.atualizado_em
+    `,
+    [barbeiro, token, Date.now()],
+    function (erro) {
+      if (erro) {
+        console.error("Erro ao salvar token push:", erro);
+
+        return res.status(500).json({
+          erro: "Não foi possível registrar o dispositivo.",
+        });
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Dispositivo registrado para notificações.",
       });
     },
   );
@@ -807,17 +985,11 @@ app.get("/horarios-livres/:data/:barbeiro", (req, res) => {
             return res.json([]);
           }
 
-          const ocupados = agendamentos.map(
-            (item) => item.horario,
-          );
+          const ocupados = agendamentos.map((item) => item.horario);
 
           const horariosBloqueados = bloqueios
-            .filter(
-              (item) => Number(item.dia_inteiro) === 0,
-            )
-            .map(
-              (item) => item.horario,
-            );
+            .filter((item) => Number(item.dia_inteiro) === 0)
+            .map((item) => item.horario);
 
           const horariosLivres = horariosBase.filter(
             (horario) =>
@@ -837,15 +1009,7 @@ app.get("/horarios-livres/:data/:barbeiro", (req, res) => {
 // ======================================================
 
 app.post("/agendar", (req, res) => {
-  let {
-    nome,
-    numero,
-    dia,
-    horario,
-    barbeiro,
-    servico,
-    valor,
-  } = req.body;
+  let { nome, numero, dia, horario, barbeiro, servico, valor } = req.body;
 
   nome = String(nome || "").trim();
   numero = String(numero || "").trim();
@@ -918,12 +1082,7 @@ app.post("/agendar", (req, res) => {
             )
           LIMIT 1
         `,
-        [
-          barbeiro,
-          horario,
-          dia,
-          diaSemana,
-        ],
+        [barbeiro, horario, dia, diaSemana],
         (erroVerificacao, ocupado) => {
           if (erroVerificacao) {
             console.error(erroVerificacao);
@@ -956,16 +1115,7 @@ app.post("/agendar", (req, res) => {
               )
               VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?)
             `,
-            [
-              nome,
-              numero,
-              dia,
-              horario,
-              barbeiro,
-              servico,
-              valor,
-              diaSemana,
-            ],
+            [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana],
             function (erroInsert) {
               if (erroInsert) {
                 console.error(erroInsert);
@@ -975,10 +1125,23 @@ app.post("/agendar", (req, res) => {
                 });
               }
 
+              const agendamentoId = this.lastID;
+
               res.json({
                 sucesso: true,
-                id: this.lastID,
+                id: agendamentoId,
                 mensagem: "Agendamento realizado com sucesso!",
+              });
+
+              enviarNotificacaoNovoAgendamento({
+                id: agendamentoId,
+                barbeiro,
+                nome,
+                dia,
+                horario,
+                servico,
+              }).catch((erroPush) => {
+                console.error("Erro ao enviar notificação push:", erroPush);
               });
             },
           );
@@ -993,15 +1156,8 @@ app.post("/agendar", (req, res) => {
 // ======================================================
 
 app.post("/agendar-fixo", (req, res) => {
-  let {
-    nome,
-    numero,
-    dia_semana,
-    horario,
-    barbeiro,
-    servico,
-    valor,
-  } = req.body;
+  let { nome, numero, dia_semana, horario, barbeiro, servico, valor } =
+    req.body;
 
   nome = String(nome || "").trim();
   numero = String(numero || "").trim();
@@ -1012,12 +1168,7 @@ app.post("/agendar-fixo", (req, res) => {
   dia_semana = Number(dia_semana);
   valor = Number(valor) || 0;
 
-  if (
-    !nome ||
-    !barbeiro ||
-    !horario ||
-    !Number.isInteger(dia_semana)
-  ) {
+  if (!nome || !barbeiro || !horario || !Number.isInteger(dia_semana)) {
     return res.status(400).json({
       erro: "Preencha todos os campos obrigatórios.",
     });
@@ -1052,11 +1203,7 @@ app.post("/agendar-fixo", (req, res) => {
         AND horario = ?
       LIMIT 1
     `,
-    [
-      barbeiro,
-      dia_semana,
-      horario,
-    ],
+    [barbeiro, dia_semana, horario],
     (erro, ocupado) => {
       if (erro) {
         console.error(erro);
@@ -1089,15 +1236,7 @@ app.post("/agendar-fixo", (req, res) => {
           )
           VALUES (?, ?, NULL, ?, ?, ?, ?, 'Confirmado', 1, ?)
         `,
-        [
-          nome,
-          numero,
-          horario,
-          barbeiro,
-          servico,
-          valor,
-          dia_semana,
-        ],
+        [nome, numero, horario, barbeiro, servico, valor, dia_semana],
         function (erroInsert) {
           if (erroInsert) {
             console.error(erroInsert);
@@ -1123,23 +1262,14 @@ app.post("/agendar-fixo", (req, res) => {
 // ======================================================
 
 app.post("/app/bloqueios", (req, res) => {
-  let {
-    barbeiro,
-    dia,
-    horario,
-    horarios,
-    dia_inteiro,
-    motivo,
-  } = req.body;
+  let { barbeiro, dia, horario, horarios, dia_inteiro, motivo } = req.body;
 
   barbeiro = normalizarBarbeiro(barbeiro);
   dia = String(dia || "").trim();
   horario = String(horario || "").trim();
   motivo = String(motivo || "").trim();
 
-  const bloquearDiaInteiro =
-    dia_inteiro === true ||
-    Number(dia_inteiro) === 1;
+  const bloquearDiaInteiro = dia_inteiro === true || Number(dia_inteiro) === 1;
 
   if (!barbeiro || !dia) {
     return res.status(400).json({
@@ -1180,11 +1310,7 @@ app.post("/app/bloqueios", (req, res) => {
             (fixo = 1 AND dia_semana = ?)
           )
       `,
-      [
-        barbeiro,
-        dia,
-        diaSemana,
-      ],
+      [barbeiro, dia, diaSemana],
       (erroAgendamento, resultado) => {
         if (erroAgendamento) {
           return res.status(500).json({
@@ -1194,8 +1320,7 @@ app.post("/app/bloqueios", (req, res) => {
 
         if (Number(resultado.total) > 0) {
           return res.status(400).json({
-            erro:
-              "Existem clientes agendados neste dia. Cancele ou remarque os agendamentos antes de bloquear o dia inteiro.",
+            erro: "Existem clientes agendados neste dia. Cancele ou remarque os agendamentos antes de bloquear o dia inteiro.",
           });
         }
 
@@ -1225,11 +1350,7 @@ app.post("/app/bloqueios", (req, res) => {
                 )
                 VALUES (?, ?, NULL, 1, ?)
               `,
-              [
-                barbeiro,
-                dia,
-                motivo,
-              ],
+              [barbeiro, dia, motivo],
               function (erroInsert) {
                 if (erroInsert) {
                   return res.status(500).json({
@@ -1286,9 +1407,7 @@ app.post("/app/bloqueios", (req, res) => {
     });
   }
 
-  const placeholders = listaHorarios
-    .map(() => "?")
-    .join(",");
+  const placeholders = listaHorarios.map(() => "?").join(",");
 
   db.all(
     `
@@ -1303,12 +1422,7 @@ app.post("/app/bloqueios", (req, res) => {
           (fixo = 1 AND dia_semana = ?)
         )
     `,
-    [
-      barbeiro,
-      ...listaHorarios,
-      dia,
-      diaSemana,
-    ],
+    [barbeiro, ...listaHorarios, dia, diaSemana],
     (erroAgendamentos, ocupados) => {
       if (erroAgendamentos) {
         console.error(erroAgendamentos);
@@ -1319,13 +1433,10 @@ app.post("/app/bloqueios", (req, res) => {
       }
 
       if (ocupados.length > 0) {
-        const listaOcupados = ocupados
-          .map((item) => item.horario)
-          .join(", ");
+        const listaOcupados = ocupados.map((item) => item.horario).join(", ");
 
         return res.status(400).json({
-          erro:
-            `Não é possível bloquear. Existem clientes nos horários: ${listaOcupados}.`,
+          erro: `Não é possível bloquear. Existem clientes nos horários: ${listaOcupados}.`,
         });
       }
 
@@ -1338,10 +1449,7 @@ app.post("/app/bloqueios", (req, res) => {
             AND dia_inteiro = 1
           LIMIT 1
         `,
-        [
-          barbeiro,
-          dia,
-        ],
+        [barbeiro, dia],
         (erroDia, bloqueioDia) => {
           if (erroDia) {
             return res.status(500).json({
@@ -1370,11 +1478,7 @@ app.post("/app/bloqueios", (req, res) => {
                   AND dia_inteiro = 0
                 LIMIT 1
               `,
-              [
-                barbeiro,
-                dia,
-                horarioItem,
-              ],
+              [barbeiro, dia, horarioItem],
               (erroExistente, existente) => {
                 if (houveErro) {
                   return;
@@ -1406,12 +1510,7 @@ app.post("/app/bloqueios", (req, res) => {
                     )
                     VALUES (?, ?, ?, 0, ?)
                   `,
-                  [
-                    barbeiro,
-                    dia,
-                    horarioItem,
-                    motivo,
-                  ],
+                  [barbeiro, dia, horarioItem, motivo],
                   (erroInsert) => {
                     if (houveErro) {
                       return;
@@ -1436,10 +1535,7 @@ app.post("/app/bloqueios", (req, res) => {
           });
 
           function finalizarBloqueios() {
-            if (
-              processados === listaHorarios.length &&
-              !houveErro
-            ) {
+            if (processados === listaHorarios.length && !houveErro) {
               res.json({
                 sucesso: true,
                 quantidade: inseridos,
@@ -1460,9 +1556,7 @@ app.post("/app/bloqueios", (req, res) => {
 // ======================================================
 
 app.get("/app/bloqueios/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   db.all(
     `
@@ -1533,9 +1627,7 @@ app.delete("/app/bloqueios/:id", (req, res) => {
 // ======================================================
 
 app.get("/agendamentos/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   db.all(
     `
@@ -1562,9 +1654,7 @@ app.get("/agendamentos/:barbeiro", (req, res) => {
 // ======================================================
 
 app.get("/agendamentos-fixos/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   db.all(
     `
@@ -1584,6 +1674,210 @@ app.get("/agendamentos-fixos/:barbeiro", (req, res) => {
       }
 
       res.json(registros);
+    },
+  );
+});
+
+// ======================================================
+// EDITAR / REMARCAR AGENDAMENTO
+// ======================================================
+
+app.put("/app/agendamentos/:id", (req, res) => {
+  const id = Number(req.params.id);
+
+  let { dia, horario, servico, valor } = req.body;
+
+  dia = String(dia || "").trim();
+  horario = String(horario || "").trim();
+  servico = String(servico || "").trim();
+
+  if (!id) {
+    return res.status(400).json({
+      erro: "Agendamento inválido.",
+    });
+  }
+
+  if (!dia || !horario || !servico) {
+    return res.status(400).json({
+      erro: "Preencha data, horário e serviço.",
+    });
+  }
+
+  if (!horariosBase.includes(horario)) {
+    return res.status(400).json({
+      erro: "Horário inválido.",
+    });
+  }
+
+  // O preço é definido pelo servidor.
+  // Assim ninguém consegue mandar um valor diferente pelo app.
+  if (servico === "Corte") {
+    valor = 30;
+  } else if (servico === "Corte + Barba") {
+    valor = 50;
+  } else {
+    return res.status(400).json({
+      erro: "Serviço inválido.",
+    });
+  }
+
+  const dataObjeto = criarDataLocal(dia);
+
+  if (Number.isNaN(dataObjeto.getTime())) {
+    return res.status(400).json({
+      erro: "Data inválida.",
+    });
+  }
+
+  const diaSemana = dataObjeto.getDay();
+
+  // Primeiro encontra o agendamento que será editado.
+  db.get(
+    `
+      SELECT *
+      FROM agendamentos
+      WHERE id = ?
+        AND fixo = 0
+        AND status = 'Confirmado'
+    `,
+    [id],
+    (erroAgendamento, agendamento) => {
+      if (erroAgendamento) {
+        console.error(erroAgendamento);
+
+        return res.status(500).json({
+          erro: "Erro ao procurar agendamento.",
+        });
+      }
+
+      if (!agendamento) {
+        return res.status(404).json({
+          erro: "Agendamento não encontrado ou não pode mais ser editado.",
+        });
+      }
+
+      const barbeiro = normalizarBarbeiro(agendamento.barbeiro);
+
+      // Verifica se o barbeiro trabalha na nova data.
+      if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
+        return res.status(400).json({
+          erro: "O barbeiro não trabalha nesta data.",
+        });
+      }
+
+      // Verifica bloqueios.
+      db.get(
+        `
+          SELECT *
+          FROM bloqueios
+          WHERE barbeiro = ?
+            AND dia = ?
+            AND (
+              dia_inteiro = 1
+              OR horario = ?
+            )
+          LIMIT 1
+        `,
+        [barbeiro, dia, horario],
+        (erroBloqueio, bloqueio) => {
+          if (erroBloqueio) {
+            console.error(erroBloqueio);
+
+            return res.status(500).json({
+              erro: "Erro ao verificar bloqueios.",
+            });
+          }
+
+          if (bloqueio) {
+            return res.status(400).json({
+              erro: "Esse horário está bloqueado na agenda.",
+            });
+          }
+
+          // Verifica outro cliente normal ou horário fixo.
+          // O id atual é ignorado para que seja possível
+          // manter o mesmo horário ao alterar só o serviço.
+          db.get(
+            `
+              SELECT *
+              FROM agendamentos
+              WHERE barbeiro = ?
+                AND horario = ?
+                AND status != 'Cancelado'
+                AND id != ?
+                AND (
+                  (fixo = 0 AND dia = ?)
+                  OR
+                  (fixo = 1 AND dia_semana = ?)
+                )
+              LIMIT 1
+            `,
+            [barbeiro, horario, id, dia, diaSemana],
+            (erroConflito, conflito) => {
+              if (erroConflito) {
+                console.error(erroConflito);
+
+                return res.status(500).json({
+                  erro: "Erro ao verificar disponibilidade.",
+                });
+              }
+
+              if (conflito) {
+                return res.status(400).json({
+                  erro: "Esse horário já está ocupado.",
+                });
+              }
+
+              // Tudo certo: atualiza o agendamento.
+              db.run(
+                `
+                  UPDATE agendamentos
+                  SET dia = ?,
+                      horario = ?,
+                      servico = ?,
+                      valor = ?,
+                      dia_semana = ?
+                  WHERE id = ?
+                    AND fixo = 0
+                    AND status = 'Confirmado'
+                `,
+                [dia, horario, servico, valor, diaSemana, id],
+                function (erroUpdate) {
+                  if (erroUpdate) {
+                    console.error(erroUpdate);
+
+                    return res.status(500).json({
+                      erro: "Erro ao atualizar agendamento.",
+                    });
+                  }
+
+                  if (this.changes === 0) {
+                    return res.status(404).json({
+                      erro: "Agendamento não encontrado.",
+                    });
+                  }
+
+                  res.json({
+                    sucesso: true,
+                    mensagem: "Agendamento atualizado com sucesso!",
+                    agendamento: {
+                      id,
+                      nome: agendamento.nome,
+                      numero: agendamento.numero,
+                      barbeiro,
+                      dia,
+                      horario,
+                      servico,
+                      valor,
+                      status: "Confirmado",
+                    },
+                  });
+                },
+              );
+            },
+          );
+        },
+      );
     },
   );
 });
@@ -1677,9 +1971,7 @@ app.delete("/cancelar/:id", (req, res) => {
 // ======================================================
 
 app.get("/app/historico/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   db.all(
     `
@@ -1710,9 +2002,7 @@ app.get("/app/historico/:barbeiro", (req, res) => {
 // ======================================================
 
 app.get("/app/agendamentos-hoje/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   const hoje = dataHoje();
   const hojeObjeto = criarDataLocal(hoje);
@@ -1735,11 +2025,7 @@ app.get("/app/agendamentos-hoje/:barbeiro", (req, res) => {
         )
       ORDER BY horario
     `,
-    [
-      barbeiro,
-      hoje,
-      diaSemana,
-    ],
+    [barbeiro, hoje, diaSemana],
     (erro, registros) => {
       if (erro) {
         return res.status(500).json({
@@ -1747,16 +2033,11 @@ app.get("/app/agendamentos-hoje/:barbeiro", (req, res) => {
         });
       }
 
-      const resultado = registros.map(
-        (item) => ({
-          ...item,
+      const resultado = registros.map((item) => ({
+        ...item,
 
-          dia:
-            Number(item.fixo) === 1
-              ? hoje
-              : item.dia,
-        }),
-      );
+        dia: Number(item.fixo) === 1 ? hoje : item.dia,
+      }));
 
       res.json(resultado);
     },
@@ -1768,15 +2049,11 @@ app.get("/app/agendamentos-hoje/:barbeiro", (req, res) => {
 // ======================================================
 
 app.get("/app/resumo-hoje/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   const hoje = dataHoje();
 
-  const diaSemana = criarDataLocal(
-    hoje,
-  ).getDay();
+  const diaSemana = criarDataLocal(hoje).getDay();
 
   db.all(
     `
@@ -1790,11 +2067,7 @@ app.get("/app/resumo-hoje/:barbeiro", (req, res) => {
           (fixo = 1 AND dia_semana = ?)
         )
     `,
-    [
-      barbeiro,
-      hoje,
-      diaSemana,
-    ],
+    [barbeiro, hoje, diaSemana],
     (erro, registros) => {
       if (erro) {
         return res.status(500).json({
@@ -1805,21 +2078,13 @@ app.get("/app/resumo-hoje/:barbeiro", (req, res) => {
       const total = registros.length;
 
       const previsto = registros.reduce(
-        (soma, item) =>
-          soma + Number(item.valor || 0),
+        (soma, item) => soma + Number(item.valor || 0),
         0,
       );
 
       const recebido = registros
-        .filter(
-          (item) =>
-            item.status === "Finalizado",
-        )
-        .reduce(
-          (soma, item) =>
-            soma + Number(item.valor || 0),
-          0,
-        );
+        .filter((item) => item.status === "Finalizado")
+        .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
       const pendente = previsto - recebido;
 
@@ -1838,9 +2103,7 @@ app.get("/app/resumo-hoje/:barbeiro", (req, res) => {
 // ======================================================
 
 app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   const hoje = new Date();
 
@@ -1848,28 +2111,19 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
 
   const diaAtual = hoje.getDay();
 
-  const diferencaSegunda =
-    diaAtual === 0
-      ? -6
-      : 1 - diaAtual;
+  const diferencaSegunda = diaAtual === 0 ? -6 : 1 - diaAtual;
 
   const segunda = new Date(hoje);
 
-  segunda.setDate(
-    hoje.getDate() + diferencaSegunda,
-  );
+  segunda.setDate(hoje.getDate() + diferencaSegunda);
 
   const domingo = new Date(segunda);
 
-  domingo.setDate(
-    segunda.getDate() + 6,
-  );
+  domingo.setDate(segunda.getDate() + 6);
 
-  const inicioSemana =
-    dataParaString(segunda);
+  const inicioSemana = dataParaString(segunda);
 
-  const fimSemana =
-    dataParaString(domingo);
+  const fimSemana = dataParaString(domingo);
 
   db.all(
     `
@@ -1886,11 +2140,7 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
           fixo = 1
         )
     `,
-    [
-      barbeiro,
-      inicioSemana,
-      fimSemana,
-    ],
+    [barbeiro, inicioSemana, fimSemana],
     (erro, registros) => {
       if (erro) {
         return res.status(500).json({
@@ -1902,67 +2152,43 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
 
       for (const item of registros) {
         if (Number(item.fixo) === 0) {
-          const dataItem =
-            criarDataLocal(item.dia);
+          const dataItem = criarDataLocal(item.dia);
 
-          if (
-            barbeiroTrabalhaNoDia(
-              barbeiro,
-              dataItem.getDay(),
-            )
-          ) {
+          if (barbeiroTrabalhaNoDia(barbeiro, dataItem.getDay())) {
             resultado.push(item);
           }
 
           continue;
         }
 
-        const diaSemana =
-          Number(item.dia_semana);
+        const diaSemana = Number(item.dia_semana);
 
         for (let i = 0; i < 7; i++) {
-          const dataSemana =
-            new Date(segunda);
+          const dataSemana = new Date(segunda);
 
-          dataSemana.setDate(
-            segunda.getDate() + i,
-          );
+          dataSemana.setDate(segunda.getDate() + i);
 
           if (
-            dataSemana.getDay() ===
-              diaSemana &&
-            barbeiroTrabalhaNoDia(
-              barbeiro,
-              diaSemana,
-            )
+            dataSemana.getDay() === diaSemana &&
+            barbeiroTrabalhaNoDia(barbeiro, diaSemana)
           ) {
             resultado.push({
               ...item,
 
-              dia:
-                dataParaString(
-                  dataSemana,
-                ),
+              dia: dataParaString(dataSemana),
             });
           }
         }
       }
 
       resultado.sort((a, b) => {
-        const compararData =
-          String(a.dia).localeCompare(
-            String(b.dia),
-          );
+        const compararData = String(a.dia).localeCompare(String(b.dia));
 
         if (compararData !== 0) {
           return compararData;
         }
 
-        return String(
-          a.horario,
-        ).localeCompare(
-          String(b.horario),
-        );
+        return String(a.horario).localeCompare(String(b.horario));
       });
 
       res.json(resultado);
@@ -1975,9 +2201,7 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
 // ======================================================
 
 app.get("/app/fixos/:barbeiro", (req, res) => {
-  const barbeiro = normalizarBarbeiro(
-    req.params.barbeiro,
-  );
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
 
   db.all(
     `
@@ -2055,8 +2279,7 @@ app.delete("/app/fixos/:id", (req, res) => {
 
           res.json({
             sucesso: true,
-            mensagem:
-              "Horário fixo excluído com sucesso!",
+            mensagem: "Horário fixo excluído com sucesso!",
           });
         },
       );
@@ -2069,7 +2292,5 @@ app.delete("/app/fixos/:id", (req, res) => {
 // ======================================================
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Servidor rodando em http://0.0.0.0:${PORT}`,
-  );
+  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
 });

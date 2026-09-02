@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "652856795108",
+    "project_id": "gbarberclub-8877e",
+    "storage_bucket": "gbarberclub-8877e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:652856795108:android:79a4266c411d18e16871f1",
+        "android_client_info": {
+          "package_name": "com.example.app_barbeiro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9OdxqZDAmEe83YoInFyfeSCaf2JnYgzI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
