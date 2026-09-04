@@ -1,14 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String api = 'http://192.168.0.131:3000';
+const String api = 'http://10.133.126.27:3000';
+
+String authToken = '';
+
+Map<String, String> headersAutenticados({bool json = false}) {
+  final headers = <String, String>{};
+
+  if (authToken.isNotEmpty) {
+    headers['Authorization'] = 'Bearer $authToken';
+  }
+
+  if (json) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  return headers;
+}
 
 const Color corFundo = Color(0xFF0F0F0F);
 const Color corCard = Color(0xFF1A1A1A);
@@ -25,32 +46,38 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> configurarNotificacoes() async {
-  final messaging = FirebaseMessaging.instance;
+  try {
+    final messaging = FirebaseMessaging.instance;
 
-  final permissao = await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+    final permissao = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
-  debugPrint('Permissão de notificação: ${permissao.authorizationStatus}');
+    debugPrint('Permissão de notificação: ${permissao.authorizationStatus}');
 
-  final token = await messaging.getToken();
+    try {
+      final token = await messaging.getToken();
 
-  debugPrint('==============================');
-  debugPrint('TOKEN FIREBASE DO APARELHO:');
-  debugPrint(token);
-  debugPrint('==============================');
+      debugPrint('TOKEN FIREBASE DO APARELHO:');
+      debugPrint(token);
+    } catch (e) {
+      debugPrint('Não foi possível obter token Firebase: $e');
+    }
 
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    debugPrint('Notificação recebida com app aberto');
-    debugPrint('Título: ${message.notification?.title}');
-    debugPrint('Mensagem: ${message.notification?.body}');
-  });
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Notificação recebida com app aberto');
+      debugPrint('Título: ${message.notification?.title}');
+      debugPrint('Mensagem: ${message.notification?.body}');
+    });
 
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    debugPrint('Usuário abriu a notificação.');
-  });
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('Usuário abriu a notificação.');
+    });
+  } catch (e) {
+    debugPrint('Erro ao configurar notificações: $e');
+  }
 }
 
 Future<void> registrarTokenPush(String barbeiro) async {
@@ -63,7 +90,7 @@ Future<void> registrarTokenPush(String barbeiro) async {
 
     await http.post(
       Uri.parse('$api/app/push-token'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headersAutenticados(json: true),
       body: jsonEncode({'barbeiro': barbeiro, 'token': token}),
     );
   } catch (e) {
@@ -74,13 +101,19 @@ Future<void> registrarTokenPush(String barbeiro) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
 
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('Erro ao iniciar Firebase: $e');
+  }
 
-  await configurarNotificacoes();
-
+  // ABRE O APP PRIMEIRO
   runApp(const GBarberClubApp());
+
+  // DEPOIS TENTA CONFIGURAR AS NOTIFICAÇÕES
+  configurarNotificacoes();
 }
 
 class GBarberClubApp extends StatelessWidget {
@@ -237,6 +270,17 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (resposta.statusCode == 200) {
+        authToken = (dados['token'] ?? '').toString();
+
+        if (authToken.isEmpty) {
+          mostrarMensagem(
+            context,
+            'O servidor não retornou o token de acesso.',
+            erro: true,
+          );
+          return;
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -1023,12 +1067,17 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
   bool carregando = true;
 
+  String nomePainel = '';
+  String fotoPerfilBase64 = '';
+
   Timer? timer;
   StreamSubscription<String>? tokenRefreshSubscription;
 
   @override
   void initState() {
     super.initState();
+
+    nomePainel = widget.nome;
 
     carregarTudo();
 
@@ -1039,7 +1088,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         try {
           await http.post(
             Uri.parse('$api/app/push-token'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headersAutenticados(json: true),
             body: jsonEncode({'barbeiro': widget.barbeiro, 'token': token}),
           );
         } catch (e) {
@@ -1071,13 +1120,38 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
     try {
       final respostas = await Future.wait([
-        http.get(Uri.parse('$api/app/agendamentos-hoje/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/agendamentos-semana/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/resumo-hoje/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/fixos/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/bloqueios/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/historico/${widget.barbeiro}')),
-        http.get(Uri.parse('$api/app/clientes/${widget.barbeiro}')),
+        http.get(
+          Uri.parse('$api/app/agendamentos-hoje/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/agendamentos-semana/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/resumo-hoje/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/fixos/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/bloqueios/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/historico/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/clientes/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/perfil/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
       ]);
 
       if (!mounted) return;
@@ -1114,6 +1188,18 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       if (respostas[6].statusCode == 200) {
         clientes = jsonDecode(respostas[6].body);
       }
+
+      if (respostas[7].statusCode == 200) {
+        final perfil = jsonDecode(respostas[7].body);
+
+        nomePainel = (perfil['nome'] ?? widget.nome).toString().trim();
+
+        if (nomePainel.isEmpty) {
+          nomePainel = widget.nome;
+        }
+
+        fotoPerfilBase64 = (perfil['foto'] ?? '').toString();
+      }
     } catch (_) {}
 
     if (mounted) {
@@ -1129,7 +1215,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
   Future<void> finalizar(int id) async {
     try {
-      final resposta = await http.put(Uri.parse('$api/finalizar/$id'));
+      final resposta = await http.put(
+        Uri.parse('$api/finalizar/$id'),
+        headers: headersAutenticados(),
+      );
 
       if (!mounted) return;
 
@@ -1193,7 +1282,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
 
     try {
-      final resposta = await http.delete(Uri.parse('$api/cancelar/$id'));
+      final resposta = await http.delete(
+        Uri.parse('$api/cancelar/$id'),
+        headers: headersAutenticados(),
+      );
 
       if (!mounted) return;
 
@@ -1261,7 +1353,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
 
     try {
-      final resposta = await http.delete(Uri.parse('$api/app/fixos/$id'));
+      final resposta = await http.delete(
+        Uri.parse('$api/app/fixos/$id'),
+        headers: headersAutenticados(),
+      );
 
       dynamic dados = {};
 
@@ -1346,7 +1441,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
 
     try {
-      final resposta = await http.delete(Uri.parse('$api/app/bloqueios/$id'));
+      final resposta = await http.delete(
+        Uri.parse('$api/app/bloqueios/$id'),
+        headers: headersAutenticados(),
+      );
 
       dynamic dados = {};
 
@@ -1419,6 +1517,307 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     if (cadastrado == true) {
       await carregarTudo();
     }
+  }
+
+  // ====================================================
+  // DASHBOARD / TELA HOJE
+  // ====================================================
+
+  Future<void> abrirNovoAgendamento() async {
+    final cadastrado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NovoAgendamentoPage(
+          barbeiro: widget.barbeiro,
+          nomeBarbeiro: nomePainel.isEmpty ? widget.nome : nomePainel,
+        ),
+      ),
+    );
+
+    if (cadastrado == true && mounted) {
+      await carregarTudo(exibirLoading: false);
+    }
+  }
+
+  String dataHojeTexto() {
+    final agora = DateTime.now();
+
+    const dias = [
+      'segunda-feira',
+      'terça-feira',
+      'quarta-feira',
+      'quinta-feira',
+      'sexta-feira',
+      'sábado',
+      'domingo',
+    ];
+
+    const meses = [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
+    ];
+
+    return '${dias[agora.weekday - 1]}, ${agora.day} de ${meses[agora.month - 1]}';
+  }
+
+  int minutosDoHorario(String horario) {
+    final partes = horario.split(':');
+
+    if (partes.length != 2) {
+      return 99999;
+    }
+
+    final hora = int.tryParse(partes[0]) ?? 99;
+    final minuto = int.tryParse(partes[1]) ?? 99;
+
+    return (hora * 60) + minuto;
+  }
+
+  bool agendamentoCancelado(dynamic item) {
+    return (item['status'] ?? '').toString().toLowerCase() == 'cancelado';
+  }
+
+  bool agendamentoFinalizado(dynamic item) {
+    return (item['status'] ?? '').toString().toLowerCase() == 'finalizado';
+  }
+
+  List<dynamic> agendamentosHojeOrdenados() {
+    final lista = List<dynamic>.from(hoje);
+
+    lista.sort((a, b) {
+      final horarioA = (a['horario'] ?? '').toString();
+      final horarioB = (b['horario'] ?? '').toString();
+
+      return minutosDoHorario(horarioA).compareTo(
+        minutosDoHorario(horarioB),
+      );
+    });
+
+    return lista;
+  }
+
+  dynamic proximoAgendamentoHoje() {
+    final lista = agendamentosHojeOrdenados()
+        .where(
+          (item) =>
+              !agendamentoFinalizado(item) &&
+              !agendamentoCancelado(item),
+        )
+        .toList();
+
+    if (lista.isEmpty) {
+      return null;
+    }
+
+    final agora = DateTime.now();
+    final minutosAgora = (agora.hour * 60) + agora.minute;
+
+    for (final item in lista) {
+      final horario = (item['horario'] ?? '').toString();
+
+      if (minutosDoHorario(horario) >= minutosAgora) {
+        return item;
+      }
+    }
+
+    // Se ainda existem clientes não finalizados com horário já passado,
+    // mostra o primeiro deles para o barbeiro não perder o atendimento.
+    return lista.first;
+  }
+
+  int atendimentosConcluidosHoje() {
+    return hoje.where(agendamentoFinalizado).length;
+  }
+
+  Widget avatarBarbeiro({double tamanho = 48}) {
+    Uint8List? bytes;
+
+    if (fotoPerfilBase64.trim().isNotEmpty) {
+      try {
+        bytes = base64Decode(fotoPerfilBase64);
+      } catch (_) {}
+    }
+
+    if (bytes != null) {
+      return ClipOval(
+        child: Image.memory(
+          bytes,
+          width: tamanho,
+          height: tamanho,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+
+    final nome = nomePainel.trim().isEmpty ? widget.nome : nomePainel.trim();
+    final inicial = nome.isEmpty ? 'G' : nome[0].toUpperCase();
+
+    return Container(
+      width: tamanho,
+      height: tamanho,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Color(0xFF22343D),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        inicial,
+        style: TextStyle(
+          color: corAzul,
+          fontSize: tamanho * 0.38,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget cardProximoCliente(dynamic item) {
+    final nome = (item['nome'] ?? 'Cliente').toString();
+    final horario = (item['horario'] ?? '--:--').toString();
+    final servico = (item['servico'] ?? 'Serviço não informado').toString();
+    final numero = (item['numero'] ?? '').toString().trim();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF17252C),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: corAzul.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: corAzul.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Text(
+                  'PRÓXIMO CLIENTE',
+                  style: TextStyle(
+                    color: corAzul,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              const Icon(
+                Icons.schedule_outlined,
+                color: corAzul,
+                size: 19,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                horario,
+                style: const TextStyle(
+                  color: corAzul,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          Text(
+            nome,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            servico,
+            style: const TextStyle(
+              color: corTextoSecundario,
+              fontSize: 14,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: numero.isEmpty
+                      ? null
+                      : () {
+                          abrirWhatsApp(item);
+                        },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.greenAccent,
+                    side: BorderSide(
+                      color: numero.isEmpty
+                          ? Colors.grey.shade700
+                          : Colors.greenAccent,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
+                  icon: const Icon(Icons.chat_outlined, size: 18),
+                  label: Text(
+                    numero.isEmpty ? 'SEM TELEFONE' : 'WHATSAPP',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: numeroInt(item['fixo']) == 1
+                      ? null
+                      : () {
+                          editarAgendamento(item);
+                        },
+                  style: botaoPrincipal(),
+                  icon: const Icon(
+                    Icons.edit_calendar_outlined,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'REMARCAR',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ====================================================
@@ -1521,13 +1920,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         titleSpacing: 15,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/Logo.png',
-              width: 45,
-              height: 45,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(width: 10),
+            avatarBarbeiro(tamanho: 44),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1541,8 +1935,13 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     ),
                   ),
                   Text(
-                    widget.nome,
-                    style: const TextStyle(fontSize: 12, color: corAzul),
+                    nomePainel.isEmpty ? widget.nome : nomePainel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: corAzul,
+                    ),
                   ),
                 ],
               ),
@@ -1628,6 +2027,28 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         ),
         const SizedBox(height: 18),
         _opcaoMais(
+          icone: Icons.person_outline,
+          titulo: 'Perfil',
+          subtitulo: 'Seus dados, e-mail e senha',
+          aoClicar: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PerfilBarbeiroPage(
+                  barbeiro: widget.barbeiro,
+                  nomeBarbeiro: widget.nome,
+                ),
+              ),
+            );
+          },
+        ),
+        _opcaoMais(
+          icone: Icons.add_circle_outline,
+          titulo: 'Novo agendamento',
+          subtitulo: 'Agende manualmente um cliente',
+          aoClicar: abrirNovoAgendamento,
+        ),
+        _opcaoMais(
           icone: Icons.event_repeat_outlined,
           titulo: 'Horários fixos',
           subtitulo: 'Gerencie clientes com horário semanal',
@@ -1668,6 +2089,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           subtitulo: 'Voltar para a tela de login',
           corIcone: Colors.redAccent,
           aoClicar: () {
+            authToken = '';
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -1738,15 +2160,99 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   // ====================================================
 
   Widget telaHoje() {
+    final listaHoje = agendamentosHojeOrdenados();
+    final proximo = proximoAgendamentoHoje();
+    final concluidos = atendimentosConcluidosHoje();
+
     return RefreshIndicator(
       color: corAzul,
       onRefresh: carregarTudo,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
-          const Text(
-            'Resumo do dia',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Olá, ${nomePainel.isEmpty ? widget.nome : nomePainel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dataHojeTexto(),
+                      style: const TextStyle(
+                        color: corTextoSecundario,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: abrirNovoAgendamento,
+                  style: botaoPrincipal(),
+                  icon: const Icon(Icons.add, size: 19),
+                  label: const Text(
+                    'AGENDAR',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          if (proximo != null) ...[
+            cardProximoCliente(proximo),
+            const SizedBox(height: 22),
+          ],
+
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Resumo do dia',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF183126),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$concluidos concluído${concluidos == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 12),
@@ -1760,13 +2266,13 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
               if (largura >= 900) {
                 colunas = 4;
-                proporcao = 3.0;
+                proporcao = 3.15;
               } else if (largura >= 600) {
                 colunas = 4;
-                proporcao = 2.2;
+                proporcao = 2.25;
               } else {
                 colunas = 2;
-                proporcao = 1.8;
+                proporcao = 1.9;
               }
 
               return GridView.count(
@@ -1778,15 +2284,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   cardResumo(
-                    titulo: 'Agendamentos',
+                    titulo: 'Agenda',
                     valor: '$total',
                     icone: Icons.calendar_month_outlined,
-                    cor: corAzul,
-                  ),
-                  cardResumo(
-                    titulo: 'Previsto',
-                    valor: dinheiro(previsto),
-                    icone: Icons.trending_up,
                     cor: corAzul,
                   ),
                   cardResumo(
@@ -1801,29 +2301,59 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     icone: Icons.schedule,
                     cor: Colors.orangeAccent,
                   ),
+                  cardResumo(
+                    titulo: 'Previsto',
+                    valor: dinheiro(previsto),
+                    icone: Icons.trending_up,
+                    cor: corAzul,
+                  ),
                 ],
               );
             },
           ),
 
-          const SizedBox(height: 27),
+          const SizedBox(height: 25),
 
-          const Row(
+          Row(
             children: [
-              Icon(Icons.content_cut, color: corAzul),
-              SizedBox(width: 9),
+              const Icon(
+                Icons.content_cut,
+                color: corAzul,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Agenda de hoje',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               Text(
-                'Agendamentos de hoje',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                '${listaHoje.length} horário${listaHoje.length == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  color: corTextoSecundario,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
 
           const SizedBox(height: 14),
 
-          if (hoje.isEmpty) mensagemVazia('Nenhum agendamento para hoje.'),
+          if (listaHoje.isEmpty)
+            mensagemVazia('Nenhum agendamento para hoje.'),
 
-          ...hoje.map((item) => cardAgendamento(item)),
+          ...listaHoje.map(
+            (item) => cardAgendamento(
+              item,
+              destaqueProximo:
+                  proximo != null &&
+                  numeroInt(item['id']) == numeroInt(proximo['id']),
+            ),
+          ),
         ],
       ),
     );
@@ -2346,12 +2876,12 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       final resposta = editando
           ? await http.put(
               Uri.parse('$api/app/clientes/${cliente['id']}'),
-              headers: {'Content-Type': 'application/json'},
+              headers: headersAutenticados(json: true),
               body: jsonEncode({'nome': nome, 'numero': numero}),
             )
           : await http.post(
               Uri.parse('$api/app/clientes'),
-              headers: {'Content-Type': 'application/json'},
+              headers: headersAutenticados(json: true),
               body: jsonEncode({
                 'nome': nome,
                 'numero': numero,
@@ -2387,6 +2917,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     try {
       final resposta = await http.get(
         Uri.parse('$api/app/clientes/${cliente['id']}/historico'),
+        headers: headersAutenticados(),
       );
       if (!mounted) return;
       if (resposta.statusCode != 200) {
@@ -2685,9 +3216,15 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   // CARD AGENDAMENTO
   // ====================================================
 
-  Widget cardAgendamento(dynamic item, {bool mostrarData = false}) {
-    final finalizado =
-        (item['status'] ?? '').toString().toLowerCase() == 'finalizado';
+  Widget cardAgendamento(
+    dynamic item, {
+    bool mostrarData = false,
+    bool destaqueProximo = false,
+  }) {
+    final status = (item['status'] ?? '').toString().toLowerCase();
+
+    final finalizado = status == 'finalizado';
+    final cancelado = status == 'cancelado';
 
     final fixo = numeroInt(item['fixo']) == 1;
 
@@ -2706,13 +3243,46 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       decoration: BoxDecoration(
         color: corCard,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF2B2B2B)),
+        border: Border.all(
+          color: destaqueProximo
+              ? corAzul.withValues(alpha: 0.75)
+              : cancelado
+              ? Colors.red.shade900
+              : const Color(0xFF2B2B2B),
+          width: destaqueProximo ? 1.4 : 1,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(15),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (destaqueProximo) ...[
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: corAzul.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'PRÓXIMO',
+                      style: TextStyle(
+                        color: corAzul,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+
             if (mostrarData && dia.isNotEmpty) ...[
               Text(
                 formatarData(dia),
@@ -2821,7 +3391,34 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
             const SizedBox(height: 14),
 
-            if (finalizado)
+            if (cancelado)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A1D1D),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.redAccent,
+                      size: 19,
+                    ),
+                    SizedBox(width: 7),
+                    Text(
+                      'CANCELADO',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (finalizado)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 11),
@@ -3351,7 +3948,7 @@ class _EditarAgendamentoPageState extends State<EditarAgendamentoPage> {
 
       final resposta = await http.put(
         Uri.parse('$api/app/agendamentos/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headersAutenticados(json: true),
         body: jsonEncode({
           'dia': dataApi(dataSelecionada),
           'horario': horarioSelecionado,
@@ -3604,6 +4201,353 @@ class _EditarAgendamentoPageState extends State<EditarAgendamentoPage> {
 // CADASTRAR FIXO
 // ======================================================
 
+// ======================================================
+// NOVO AGENDAMENTO MANUAL
+// ======================================================
+
+class NovoAgendamentoPage extends StatefulWidget {
+  final String barbeiro;
+  final String nomeBarbeiro;
+
+  const NovoAgendamentoPage({
+    super.key,
+    required this.barbeiro,
+    required this.nomeBarbeiro,
+  });
+
+  @override
+  State<NovoAgendamentoPage> createState() => _NovoAgendamentoPageState();
+}
+
+class _NovoAgendamentoPageState extends State<NovoAgendamentoPage> {
+  final nomeController = TextEditingController();
+  final numeroController = TextEditingController();
+
+  DateTime? dataSelecionada;
+  List<String> horariosLivres = [];
+  String? horarioSelecionado;
+  String servicoSelecionado = 'Corte';
+  bool carregandoHorarios = false;
+  bool salvando = false;
+
+  double get valorServico => servicoSelecionado == 'Corte + Barba' ? 50 : 30;
+
+  String formatarDataBackend(DateTime data) {
+    final ano = data.year.toString().padLeft(4, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final dia = data.day.toString().padLeft(2, '0');
+    return '$ano-$mes-$dia';
+  }
+
+  String formatarDataTela(DateTime data) {
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    return '$dia/$mes/${data.year}';
+  }
+
+  bool barbeiroTrabalha(DateTime data) {
+    final barbeiro = widget.barbeiro.trim().toLowerCase();
+    if (barbeiro == 'gustavo') return data.weekday == DateTime.saturday;
+    if (barbeiro == 'guel') {
+      return data.weekday >= DateTime.wednesday &&
+          data.weekday <= DateTime.saturday;
+    }
+    return true;
+  }
+
+  Future<void> escolherData() async {
+    final agora = DateTime.now();
+    var inicial = DateTime(agora.year, agora.month, agora.day);
+    while (!barbeiroTrabalha(inicial)) {
+      inicial = inicial.add(const Duration(days: 1));
+    }
+
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: DateTime(agora.year, agora.month, agora.day),
+      lastDate: DateTime(agora.year + 2),
+      selectableDayPredicate: barbeiroTrabalha,
+      helpText: 'Selecione o dia do agendamento',
+      cancelText: 'CANCELAR',
+      confirmText: 'SELECIONAR',
+    );
+
+    if (escolhida == null) return;
+
+    setState(() {
+      dataSelecionada = escolhida;
+      horarioSelecionado = null;
+      horariosLivres = [];
+    });
+    await carregarHorarios();
+  }
+
+  Future<void> carregarHorarios() async {
+    if (dataSelecionada == null) return;
+    setState(() => carregandoHorarios = true);
+    try {
+      final dia = formatarDataBackend(dataSelecionada!);
+      final resposta = await http.get(
+        Uri.parse('$api/horarios-livres/$dia/${widget.barbeiro}'),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        final lista = (dados as List).map((e) => e.toString()).toList();
+        setState(() {
+          horariosLivres = lista;
+          horarioSelecionado = lista.isEmpty ? null : lista.first;
+        });
+      } else {
+        mostrarMensagem(
+          context,
+          'Não foi possível carregar os horários.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => carregandoHorarios = false);
+    }
+  }
+
+  Future<void> agendar() async {
+    final nome = nomeController.text.trim();
+    final numero = numeroController.text.trim();
+    if (nome.isEmpty) {
+      mostrarMensagem(context, 'Digite o nome do cliente.', erro: true);
+      return;
+    }
+    if (dataSelecionada == null) {
+      mostrarMensagem(context, 'Selecione a data.', erro: true);
+      return;
+    }
+    if (horarioSelecionado == null) {
+      mostrarMensagem(context, 'Selecione um horário disponível.', erro: true);
+      return;
+    }
+
+    setState(() => salvando = true);
+    try {
+      final resposta = await http.post(
+        Uri.parse('$api/agendar'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'nome': nome,
+          'numero': numero,
+          'dia': formatarDataBackend(dataSelecionada!),
+          'horario': horarioSelecionado,
+          'barbeiro': widget.barbeiro,
+          'servico': servicoSelecionado,
+          'valor': valorServico,
+        }),
+      );
+
+      dynamic dados = {};
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(
+          context,
+          dados['mensagem']?.toString() ?? 'Agendamento criado!',
+        );
+        await Future.delayed(const Duration(milliseconds: 450));
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível criar o agendamento.',
+          erro: true,
+        );
+        await carregarHorarios();
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    numeroController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Novo agendamento')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(child: logoGBarber(tamanho: 90, mostrarNome: false)),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: corCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF303030)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.content_cut, color: corAzul),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Barbeiro: ${widget.nomeBarbeiro}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: nomeController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do cliente *',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: numeroController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Telefone',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  InkWell(
+                    onTap: escolherData,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Data *',
+                        prefixIcon: Icon(Icons.calendar_month_outlined),
+                      ),
+                      child: Text(
+                        dataSelecionada == null
+                            ? 'Selecionar data'
+                            : formatarDataTela(dataSelecionada!),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (carregandoHorarios)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(color: corAzul),
+                      ),
+                    )
+                  else if (dataSelecionada != null && horariosLivres.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: corCard,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Nenhum horário disponível nesta data.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: corTextoSecundario),
+                      ),
+                    )
+                  else if (dataSelecionada != null)
+                    DropdownButtonFormField<String>(
+                      initialValue: horarioSelecionado,
+                      decoration: const InputDecoration(
+                        labelText: 'Horário *',
+                        prefixIcon: Icon(Icons.schedule),
+                      ),
+                      items: horariosLivres
+                          .map(
+                            (h) => DropdownMenuItem(value: h, child: Text(h)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => horarioSelecionado = v),
+                    ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: servicoSelecionado,
+                    decoration: const InputDecoration(
+                      labelText: 'Serviço *',
+                      prefixIcon: Icon(Icons.content_cut),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Corte',
+                        child: Text('Corte - R\$ 30,00'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Corte + Barba',
+                        child: Text('Corte + Barba - R\$ 50,00'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => servicoSelecionado = v);
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: salvando ? null : agendar,
+                      style: botaoPrincipal(),
+                      icon: salvando
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Icon(Icons.check),
+                      label: Text(
+                        salvando ? 'AGENDANDO...' : 'CONFIRMAR AGENDAMENTO',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class CadastroFixoPage extends StatefulWidget {
   final String barbeiro;
   final String nomeBarbeiro;
@@ -3711,7 +4655,7 @@ class _CadastroFixoPageState extends State<CadastroFixoPage> {
     try {
       final resposta = await http.post(
         Uri.parse('$api/agendar-fixo'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headersAutenticados(json: true),
         body: jsonEncode({
           'nome': nome,
           'numero': numero,
@@ -4117,7 +5061,7 @@ class _CadastroBloqueioPageState extends State<CadastroBloqueioPage> {
 
       final resposta = await http.post(
         Uri.parse('$api/app/bloqueios'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headersAutenticados(json: true),
         body: jsonEncode(corpo),
       );
 
@@ -4420,6 +5364,642 @@ class _CadastroBloqueioPageState extends State<CadastroBloqueioPage> {
 }
 
 // ======================================================
+// PERFIL DO BARBEIRO
+// ======================================================
+
+class PerfilBarbeiroPage extends StatefulWidget {
+  final String barbeiro;
+  final String nomeBarbeiro;
+
+  const PerfilBarbeiroPage({
+    super.key,
+    required this.barbeiro,
+    required this.nomeBarbeiro,
+  });
+
+  @override
+  State<PerfilBarbeiroPage> createState() => _PerfilBarbeiroPageState();
+}
+
+class _PerfilBarbeiroPageState extends State<PerfilBarbeiroPage> {
+  final nomeController = TextEditingController();
+  final usuarioController = TextEditingController();
+  final emailController = TextEditingController();
+
+  final senhaAtualController = TextEditingController();
+  final novaSenhaController = TextEditingController();
+  final confirmarSenhaController = TextEditingController();
+
+  final ImagePicker _imagePicker = ImagePicker();
+
+  bool carregando = true;
+  bool salvando = false;
+  bool alterandoSenha = false;
+  bool mostrarSenhas = false;
+
+  String fotoBase64 = '';
+
+  @override
+  void initState() {
+    super.initState();
+    usuarioController.text = widget.barbeiro;
+    nomeController.text = widget.nomeBarbeiro;
+    carregarPerfil();
+  }
+
+  Uint8List? get fotoBytes {
+    if (fotoBase64.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      return base64Decode(fotoBase64);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> carregarPerfil() async {
+    if (mounted) {
+      setState(() => carregando = true);
+    }
+
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/app/perfil/${widget.barbeiro}'),
+        headers: headersAutenticados(),
+      );
+
+      dynamic dados = {};
+
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        setState(() {
+          nomeController.text = (dados['nome'] ?? widget.nomeBarbeiro)
+              .toString();
+
+          usuarioController.text = (dados['usuario'] ?? widget.barbeiro)
+              .toString();
+
+          emailController.text = (dados['email'] ?? '').toString();
+
+          fotoBase64 = (dados['foto'] ?? '').toString();
+        });
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível carregar o perfil.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => carregando = false);
+      }
+    }
+  }
+
+  Future<void> escolherFoto(ImageSource origem) async {
+    try {
+      final arquivo = await _imagePicker.pickImage(
+        source: origem,
+        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
+
+      if (arquivo == null) {
+        return;
+      }
+
+      final bytes = await arquivo.readAsBytes();
+
+      if (bytes.length > 4 * 1024 * 1024) {
+        if (mounted) {
+          mostrarMensagem(
+            context,
+            'A foto ficou muito grande. Escolha outra imagem.',
+            erro: true,
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        fotoBase64 = base64Encode(bytes);
+      });
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível selecionar a foto.',
+          erro: true,
+        );
+      }
+    }
+  }
+
+  Future<void> abrirOpcoesFoto() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: corCard,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library_outlined,
+                    color: corAzul,
+                  ),
+                  title: const Text('Escolher da galeria'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    escolherFoto(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.camera_alt_outlined,
+                    color: corAzul,
+                  ),
+                  title: const Text('Tirar foto'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    escolherFoto(ImageSource.camera);
+                  },
+                ),
+                if (fotoBase64.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                    ),
+                    title: const Text('Remover foto'),
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      setState(() {
+                        fotoBase64 = '';
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> salvarPerfil() async {
+    final nome = nomeController.text.trim();
+    final email = emailController.text.trim();
+
+    if (nome.isEmpty || email.isEmpty) {
+      mostrarMensagem(context, 'Preencha nome e e-mail.', erro: true);
+      return;
+    }
+
+    setState(() => salvando = true);
+
+    try {
+      final resposta = await http.put(
+        Uri.parse('$api/app/perfil/${widget.barbeiro}'),
+        headers: headersAutenticados(json: true),
+        body: jsonEncode({'nome': nome, 'email': email, 'foto': fotoBase64}),
+      );
+
+      dynamic dados = {};
+
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(
+          context,
+          dados['mensagem']?.toString() ?? 'Perfil atualizado com sucesso!',
+        );
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível atualizar o perfil.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => salvando = false);
+      }
+    }
+  }
+
+  Future<void> trocarSenha() async {
+    final senhaAtual = senhaAtualController.text;
+    final novaSenha = novaSenhaController.text;
+    final confirmarSenha = confirmarSenhaController.text;
+
+    if (senhaAtual.isEmpty || novaSenha.isEmpty || confirmarSenha.isEmpty) {
+      mostrarMensagem(context, 'Preencha os três campos de senha.', erro: true);
+      return;
+    }
+
+    if (novaSenha.length < 4) {
+      mostrarMensagem(
+        context,
+        'A nova senha precisa ter pelo menos 4 caracteres.',
+        erro: true,
+      );
+      return;
+    }
+
+    if (novaSenha != confirmarSenha) {
+      mostrarMensagem(context, 'As novas senhas não coincidem.', erro: true);
+      return;
+    }
+
+    setState(() => alterandoSenha = true);
+
+    try {
+      final resposta = await http.post(
+        Uri.parse('$api/app/alterar-senha'),
+        headers: headersAutenticados(json: true),
+        body: jsonEncode({
+          'usuario': widget.barbeiro,
+          'senhaAtual': senhaAtual,
+          'novaSenha': novaSenha,
+          'confirmarSenha': confirmarSenha,
+        }),
+      );
+
+      dynamic dados = {};
+
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        senhaAtualController.clear();
+        novaSenhaController.clear();
+        confirmarSenhaController.clear();
+
+        mostrarMensagem(
+          context,
+          dados['mensagem']?.toString() ?? 'Senha alterada com sucesso!',
+        );
+
+        await Future.delayed(const Duration(milliseconds: 900));
+
+        if (!mounted) return;
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+          (_) => false,
+        );
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível alterar a senha.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => alterandoSenha = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    usuarioController.dispose();
+    emailController.dispose();
+    senhaAtualController.dispose();
+    novaSenhaController.dispose();
+    confirmarSenhaController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = fotoBytes;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Perfil')),
+      body: carregando
+          ? const Center(child: CircularProgressIndicator(color: corAzul))
+          : SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 105,
+                                height: 105,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF263B45),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: corAzul, width: 2),
+                                  image: bytes != null
+                                      ? DecorationImage(
+                                          image: MemoryImage(bytes),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: bytes == null
+                                    ? const Icon(
+                                        Icons.person,
+                                        size: 58,
+                                        color: corAzul,
+                                      )
+                                    : null,
+                              ),
+                              Positioned(
+                                right: -4,
+                                bottom: -2,
+                                child: Material(
+                                  color: corAzul,
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: abrirOpcoesFoto,
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(9),
+                                      child: Icon(
+                                        Icons.camera_alt,
+                                        size: 20,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Text(
+                          nomeController.text.isEmpty
+                              ? widget.nomeBarbeiro
+                              : nomeController.text,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          '@${widget.barbeiro}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: corTextoSecundario),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        TextButton.icon(
+                          onPressed: abrirOpcoesFoto,
+                          icon: const Icon(Icons.add_a_photo_outlined),
+                          label: Text(
+                            bytes == null ? 'Adicionar foto' : 'Alterar foto',
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          'Dados da conta',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        TextField(
+                          controller: nomeController,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) {
+                            setState(() {});
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Nome',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        TextField(
+                          controller: usuarioController,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Usuário',
+                            prefixIcon: Icon(Icons.person_outline),
+                            helperText:
+                                'O usuário não pode ser alterado para não afetar a agenda.',
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        TextField(
+                          controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'E-mail',
+                            prefixIcon: Icon(Icons.email_outlined),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        SizedBox(
+                          height: 53,
+                          child: ElevatedButton.icon(
+                            onPressed: salvando ? null : salvarPerfil,
+                            style: botaoPrincipal(),
+                            icon: salvando
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.black,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(
+                              salvando ? 'SALVANDO...' : 'SALVAR PERFIL',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        const Divider(color: Color(0xFF333333)),
+
+                        const SizedBox(height: 22),
+
+                        const Text(
+                          'Alterar senha',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 5),
+
+                        const Text(
+                          'Depois da alteração você voltará para o login para testar a nova senha.',
+                          style: TextStyle(color: corTextoSecundario),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          controller: senhaAtualController,
+                          obscureText: !mostrarSenhas,
+                          decoration: InputDecoration(
+                            labelText: 'Senha atual',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  mostrarSenhas = !mostrarSenhas;
+                                });
+                              },
+                              icon: Icon(
+                                mostrarSenhas
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        TextField(
+                          controller: novaSenhaController,
+                          obscureText: !mostrarSenhas,
+                          decoration: const InputDecoration(
+                            labelText: 'Nova senha',
+                            prefixIcon: Icon(Icons.password_outlined),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        TextField(
+                          controller: confirmarSenhaController,
+                          obscureText: !mostrarSenhas,
+                          decoration: const InputDecoration(
+                            labelText: 'Confirmar nova senha',
+                            prefixIcon: Icon(Icons.password_outlined),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        SizedBox(
+                          height: 53,
+                          child: OutlinedButton.icon(
+                            onPressed: alterandoSenha ? null : trocarSenha,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: corAzul,
+                              side: const BorderSide(color: corAzul),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: alterandoSenha
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: corAzul,
+                                    ),
+                                  )
+                                : const Icon(Icons.lock_reset),
+                            label: Text(
+                              alterandoSenha ? 'ALTERANDO...' : 'ALTERAR SENHA',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+// ======================================================
 // FUNÇÕES AUXILIARES
 // ======================================================
 
@@ -4451,7 +6031,6 @@ String nomeDiaSemana(int dia) {
   }
 }
 
-
 class RelatoriosPage extends StatefulWidget {
   final String barbeiro;
   final String nomeBarbeiro;
@@ -4468,6 +6047,7 @@ class RelatoriosPage extends StatefulWidget {
 
 class _RelatoriosPageState extends State<RelatoriosPage> {
   bool carregando = true;
+  bool exportandoPdf = false;
   Map<String, dynamic> dados = {};
   late DateTime mesSelecionado;
 
@@ -4484,8 +6064,18 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
 
   String get nomeMes {
     const meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
     return '${meses[mesSelecionado.month - 1]} ${mesSelecionado.year}';
   }
@@ -4495,19 +6085,291 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
     try {
       final resposta = await http.get(
         Uri.parse('$api/app/relatorios/${widget.barbeiro}?mes=$mesApi'),
+        headers: headersAutenticados(),
       );
       if (!mounted) return;
       if (resposta.statusCode == 200) {
         dados = Map<String, dynamic>.from(jsonDecode(resposta.body));
       } else {
-        mostrarMensagem(context, 'Não foi possível carregar o relatório.', erro: true);
+        mostrarMensagem(
+          context,
+          'Não foi possível carregar o relatório.',
+          erro: true,
+        );
       }
     } catch (_) {
       if (mounted) {
-        mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
       }
     } finally {
       if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  Future<void> exportarRelatorioPdf() async {
+    if (exportandoPdf) return;
+
+    setState(() => exportandoPdf = true);
+
+    try {
+      final servicos = (dados['servicos'] as List?) ?? [];
+      final clientes = (dados['top_clientes'] as List?) ?? [];
+
+      final documento = pw.Document();
+
+      pw.MemoryImage? logo;
+
+      try {
+        final logoBytes = await rootBundle.load('assets/images/Logo.png');
+        logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
+      } catch (_) {}
+
+      final faturamento = dinheiro(numeroDouble(dados['faturamento_periodo']));
+      final ticketMedio = dinheiro(numeroDouble(dados['ticket_medio']));
+      final atendimentos = numeroInt(dados['atendimentos']).toString();
+      final cancelamentos = numeroInt(dados['cancelamentos']).toString();
+
+      pw.Widget cardPdf(String titulo, String valor) {
+        return pw.Container(
+          width: 120,
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey400),
+            borderRadius: pw.BorderRadius.circular(6),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                titulo,
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                valor,
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      documento.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          header: (context) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(bottom: 12),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.7),
+                ),
+              ),
+              child: pw.Row(
+                children: [
+                  if (logo != null)
+                    pw.Container(
+                      width: 48,
+                      height: 48,
+                      margin: const pw.EdgeInsets.only(right: 12),
+                      child: pw.Image(logo, fit: pw.BoxFit.contain),
+                    ),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'G BARBER CLUB',
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Relatório mensal - $nomeMes',
+                          style: const pw.TextStyle(
+                            fontSize: 11,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          footer: (context) {
+            return pw.Container(
+              alignment: pw.Alignment.centerRight,
+              margin: const pw.EdgeInsets.only(top: 10),
+              child: pw.Text(
+                'Página ${context.pageNumber} de ${context.pagesCount}',
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            );
+          },
+          build: (context) => [
+            pw.SizedBox(height: 16),
+
+            pw.Text(
+              'Barbeiro: ${widget.nomeBarbeiro}',
+              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+            ),
+
+            pw.Text(
+              'Usuário: ${widget.barbeiro}',
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+            ),
+
+            pw.SizedBox(height: 18),
+
+            pw.Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                cardPdf('Faturamento', faturamento),
+                cardPdf('Ticket médio', ticketMedio),
+                cardPdf('Atendimentos', atendimentos),
+                cardPdf('Cancelamentos', cancelamentos),
+              ],
+            ),
+
+            pw.SizedBox(height: 24),
+
+            pw.Text(
+              'Serviços realizados',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+
+            pw.SizedBox(height: 8),
+
+            if (servicos.isEmpty)
+              pw.Text(
+                'Nenhum atendimento finalizado neste mês.',
+                style: const pw.TextStyle(color: PdfColors.grey700),
+              )
+            else
+              pw.Table.fromTextArray(
+                headers: const ['Serviço', 'Quantidade'],
+                data: servicos
+                    .map(
+                      (item) => [
+                        (item['servico'] ?? 'Não informado').toString(),
+                        numeroInt(item['quantidade']).toString(),
+                      ],
+                    )
+                    .toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.grey300,
+                ),
+                cellPadding: const pw.EdgeInsets.all(7),
+                border: pw.TableBorder.all(
+                  color: PdfColors.grey400,
+                  width: 0.5,
+                ),
+              ),
+
+            pw.SizedBox(height: 24),
+
+            pw.Text(
+              'Clientes que mais voltaram',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+
+            pw.SizedBox(height: 8),
+
+            if (clientes.isEmpty)
+              pw.Text(
+                'Nenhum cliente para este período.',
+                style: const pw.TextStyle(color: PdfColors.grey700),
+              )
+            else
+              pw.Table.fromTextArray(
+                headers: const ['#', 'Cliente', 'Atendimentos', 'Total gasto'],
+                data: clientes.asMap().entries.map((entrada) {
+                  final item = entrada.value;
+
+                  return [
+                    (entrada.key + 1).toString(),
+                    (item['nome'] ?? 'Cliente').toString(),
+                    numeroInt(item['atendimentos']).toString(),
+                    dinheiro(numeroDouble(item['total_gasto'])),
+                  ];
+                }).toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.grey300,
+                ),
+                cellPadding: const pw.EdgeInsets.all(7),
+                border: pw.TableBorder.all(
+                  color: PdfColors.grey400,
+                  width: 0.5,
+                ),
+              ),
+
+            pw.SizedBox(height: 24),
+
+            pw.Text(
+              'Resumo adicional',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+
+            pw.SizedBox(height: 8),
+
+            pw.Bullet(
+              text:
+                  'Faturamento de hoje: ${dinheiro(numeroDouble(dados['faturamento_hoje']))}',
+            ),
+            pw.Bullet(
+              text:
+                  'Faturamento da semana: ${dinheiro(numeroDouble(dados['faturamento_semana']))}',
+            ),
+            pw.Bullet(
+              text:
+                  'Faturamento do mês atual: ${dinheiro(numeroDouble(dados['faturamento_mes_atual']))}',
+            ),
+          ],
+        ),
+      );
+
+      final bytes = await documento.save();
+
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename:
+            'relatorio_${widget.barbeiro}_${mesApi.replaceAll('-', '_')}.pdf',
+      );
+
+      if (mounted) {
+        mostrarMensagem(context, 'Relatório PDF gerado com sucesso!');
+      }
+    } catch (e) {
+      debugPrint('Erro ao exportar relatório: $e');
+
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível gerar o PDF.', erro: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => exportandoPdf = false);
+      }
     }
   }
 
@@ -4551,9 +6413,15 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         children: [
           Icon(icone, color: corAzul),
           const SizedBox(height: 10),
-          Text(titulo, style: const TextStyle(color: corTextoSecundario, fontSize: 12)),
+          Text(
+            titulo,
+            style: const TextStyle(color: corTextoSecundario, fontSize: 12),
+          ),
           const SizedBox(height: 4),
-          Text(valor, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+          Text(
+            valor,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -4574,64 +6442,166 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text('Visão financeira', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Visão financeira',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 5),
-                  Text('Resultados de ${widget.nomeBarbeiro}', style: const TextStyle(color: corTextoSecundario)),
+                  Text(
+                    'Resultados de ${widget.nomeBarbeiro}',
+                    style: const TextStyle(color: corTextoSecundario),
+                  ),
                   const SizedBox(height: 18),
                   GridView.count(
-                    crossAxisCount: MediaQuery.of(context).size.width >= 650 ? 3 : 2,
+                    crossAxisCount: MediaQuery.of(context).size.width >= 650
+                        ? 3
+                        : 2,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
-                    childAspectRatio: MediaQuery.of(context).size.width >= 650 ? 2.2 : 1.45,
+                    childAspectRatio: MediaQuery.of(context).size.width >= 650
+                        ? 2.2
+                        : 1.45,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
-                      cardNumero('Hoje', dinheiro(numeroDouble(dados['faturamento_hoje'])), Icons.today_outlined),
-                      cardNumero('Semana', dinheiro(numeroDouble(dados['faturamento_semana'])), Icons.date_range_outlined),
-                      cardNumero('Mês atual', dinheiro(numeroDouble(dados['faturamento_mes_atual'])), Icons.calendar_month_outlined),
+                      cardNumero(
+                        'Hoje',
+                        dinheiro(numeroDouble(dados['faturamento_hoje'])),
+                        Icons.today_outlined,
+                      ),
+                      cardNumero(
+                        'Semana',
+                        dinheiro(numeroDouble(dados['faturamento_semana'])),
+                        Icons.date_range_outlined,
+                      ),
+                      cardNumero(
+                        'Mês atual',
+                        dinheiro(numeroDouble(dados['faturamento_mes_atual'])),
+                        Icons.calendar_month_outlined,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      IconButton(onPressed: () => mudarMes(-1), icon: const Icon(Icons.chevron_left)),
-                      Expanded(
-                        child: Text(nomeMes, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: corAzul)),
+                      IconButton(
+                        onPressed: () => mudarMes(-1),
+                        icon: const Icon(Icons.chevron_left),
                       ),
-                      IconButton(onPressed: () => mudarMes(1), icon: const Icon(Icons.chevron_right)),
+                      Expanded(
+                        child: Text(
+                          nomeMes,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: corAzul,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => mudarMes(1),
+                        icon: const Icon(Icons.chevron_right),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: exportandoPdf ? null : exportarRelatorioPdf,
+                      style: botaoPrincipal(),
+                      icon: exportandoPdf
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: Text(
+                        exportandoPdf
+                            ? 'GERANDO PDF...'
+                            : 'EXPORTAR RELATÓRIO EM PDF',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
                   GridView.count(
                     crossAxisCount: 2,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
-                    childAspectRatio: MediaQuery.of(context).size.width >= 650 ? 2.5 : 1.45,
+                    childAspectRatio: MediaQuery.of(context).size.width >= 650
+                        ? 2.5
+                        : 1.45,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
-                      cardNumero('Faturamento', dinheiro(numeroDouble(dados['faturamento_periodo'])), Icons.attach_money),
-                      cardNumero('Ticket médio', dinheiro(numeroDouble(dados['ticket_medio'])), Icons.receipt_long_outlined),
-                      cardNumero('Atendimentos', numeroInt(dados['atendimentos']).toString(), Icons.content_cut),
-                      cardNumero('Cancelamentos', numeroInt(dados['cancelamentos']).toString(), Icons.cancel_outlined),
+                      cardNumero(
+                        'Faturamento',
+                        dinheiro(numeroDouble(dados['faturamento_periodo'])),
+                        Icons.attach_money,
+                      ),
+                      cardNumero(
+                        'Ticket médio',
+                        dinheiro(numeroDouble(dados['ticket_medio'])),
+                        Icons.receipt_long_outlined,
+                      ),
+                      cardNumero(
+                        'Atendimentos',
+                        numeroInt(dados['atendimentos']).toString(),
+                        Icons.content_cut,
+                      ),
+                      cardNumero(
+                        'Cancelamentos',
+                        numeroInt(dados['cancelamentos']).toString(),
+                        Icons.cancel_outlined,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 26),
-                  const Text('Serviços realizados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Serviços realizados',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 10),
-                  if (servicos.isEmpty) mensagemVaziaRelatorio('Nenhum atendimento finalizado neste mês.'),
-                  ...servicos.map((item) => Card(
-                    color: corCard,
-                    child: ListTile(
-                      leading: const Icon(Icons.content_cut, color: corAzul),
-                      title: Text((item['servico'] ?? 'Não informado').toString()),
-                      trailing: Text('${numeroInt(item['quantidade'])}x', style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                  if (servicos.isEmpty)
+                    mensagemVaziaRelatorio(
+                      'Nenhum atendimento finalizado neste mês.',
                     ),
-                  )),
+                  ...servicos.map(
+                    (item) => Card(
+                      color: corCard,
+                      child: ListTile(
+                        leading: const Icon(Icons.content_cut, color: corAzul),
+                        title: Text(
+                          (item['servico'] ?? 'Não informado').toString(),
+                        ),
+                        trailing: Text(
+                          '${numeroInt(item['quantidade'])}x',
+                          style: const TextStyle(
+                            color: corAzul,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
-                  const Text('Clientes que mais voltaram', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Clientes que mais voltaram',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 10),
-                  if (clientes.isEmpty) mensagemVaziaRelatorio('Nenhum cliente para este período.'),
+                  if (clientes.isEmpty)
+                    mensagemVaziaRelatorio('Nenhum cliente para este período.'),
                   ...clientes.asMap().entries.map((entrada) {
                     final item = entrada.value;
                     return Card(
@@ -4639,11 +6609,25 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: const Color(0xFF263B45),
-                          child: Text('${entrada.key + 1}', style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            '${entrada.key + 1}',
+                            style: const TextStyle(
+                              color: corAzul,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         title: Text((item['nome'] ?? 'Cliente').toString()),
-                        subtitle: Text('${numeroInt(item['atendimentos'])} atendimento(s)'),
-                        trailing: Text(dinheiro(numeroDouble(item['total_gasto'])), style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          '${numeroInt(item['atendimentos'])} atendimento(s)',
+                        ),
+                        trailing: Text(
+                          dinheiro(numeroDouble(item['total_gasto'])),
+                          style: const TextStyle(
+                            color: corAzul,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     );
                   }),

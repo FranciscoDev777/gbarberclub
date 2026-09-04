@@ -16,6 +16,9 @@ dependencies:
   url_launcher: ^6.3.2
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
+  image_picker: ^1.2.3
+  pdf: ^3.13.0
+  printing: ^5.15.0
 
 dev_dependencies:
   flutter_test:

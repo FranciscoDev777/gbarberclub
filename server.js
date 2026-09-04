@@ -5,11 +5,22 @@ const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const jwt = require("jsonwebtoken");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
 
 const app = express();
 const PORT = 3000;
+
+const JWT_SECRET =
+  process.env.JWT_SECRET || crypto.randomBytes(64).toString("hex");
+
+if (!process.env.JWT_SECRET) {
+  console.log(
+    "AVISO: JWT_SECRET não definido no .env. Os logins serão invalidados ao reiniciar o servidor.",
+  );
+}
+
 
 // ======================================================
 // FIREBASE ADMIN - NOTIFICAÇÕES PUSH
@@ -35,8 +46,144 @@ try {
 // ======================================================
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
+
+function gerarTokenAcesso(barbeiro) {
+  return jwt.sign(
+    {
+      id: barbeiro.id,
+      usuario: normalizarBarbeiro(barbeiro.usuario),
+      nome: barbeiro.nome,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "7d",
+    },
+  );
+}
+
+function rotaPublica(req) {
+  const publicas = new Set([
+    "/app/login",
+    "/app/cadastrar-barbeiro",
+    "/app/esqueci-senha",
+    "/app/redefinir-senha",
+  ]);
+
+  return publicas.has(req.path);
+}
+
+function autenticarToken(req, res, next) {
+  const precisaToken =
+    req.path.startsWith("/app/") ||
+    req.path.startsWith("/finalizar/") ||
+    req.path.startsWith("/cancelar/") ||
+    req.path === "/agendar-fixo";
+
+  if (!precisaToken || rotaPublica(req)) {
+    return next();
+  }
+
+  const autorizacao = String(req.headers.authorization || "").trim();
+
+  if (!autorizacao.startsWith("Bearer ")) {
+    return res.status(401).json({
+      erro: "Acesso não autorizado. Faça login novamente.",
+    });
+  }
+
+  const token = autorizacao.substring(7).trim();
+
+  try {
+    const dados = jwt.verify(token, JWT_SECRET);
+
+    req.usuarioAutenticado = normalizarBarbeiro(dados.usuario);
+    req.barbeiroIdAutenticado = Number(dados.id);
+
+    if (!req.usuarioAutenticado) {
+      return res.status(401).json({
+        erro: "Token inválido.",
+      });
+    }
+
+    const barbeiroBody = normalizarBarbeiro(req.body?.barbeiro);
+
+    if (
+      barbeiroBody &&
+      barbeiroBody !== req.usuarioAutenticado
+    ) {
+      return res.status(403).json({
+        erro: "Você não pode alterar dados de outro barbeiro.",
+      });
+    }
+
+    const usuarioBody = normalizarBarbeiro(req.body?.usuario);
+
+    if (
+      usuarioBody &&
+      usuarioBody !== req.usuarioAutenticado
+    ) {
+      return res.status(403).json({
+        erro: "Usuário diferente da conta autenticada.",
+      });
+    }
+
+    const partes = req.path.split("/").filter(Boolean);
+
+    if (
+      partes.length >= 3 &&
+      partes[0] === "app" &&
+      [
+        "agendamentos-hoje",
+        "agendamentos-semana",
+        "resumo-hoje",
+        "fixos",
+        "bloqueios",
+        "historico",
+        "perfil",
+        "relatorios",
+      ].includes(partes[1])
+    ) {
+      const barbeiroRota = normalizarBarbeiro(partes[2]);
+
+      if (
+        barbeiroRota &&
+        barbeiroRota !== req.usuarioAutenticado
+      ) {
+        return res.status(403).json({
+          erro: "Você não pode acessar dados de outro barbeiro.",
+        });
+      }
+    }
+
+    if (
+      partes.length === 3 &&
+      partes[0] === "app" &&
+      partes[1] === "clientes" &&
+      Number.isNaN(Number(partes[2]))
+    ) {
+      const barbeiroRota = normalizarBarbeiro(partes[2]);
+
+      if (
+        barbeiroRota &&
+        barbeiroRota !== req.usuarioAutenticado
+      ) {
+        return res.status(403).json({
+          erro: "Você não pode acessar clientes de outro barbeiro.",
+        });
+      }
+    }
+
+    next();
+  } catch (_) {
+    return res.status(401).json({
+      erro: "Sessão expirada ou token inválido. Faça login novamente.",
+    });
+  }
+}
+
+app.use(autenticarToken);
 
 // ======================================================
 // BANCO DE DADOS
@@ -120,6 +267,7 @@ db.all(`PRAGMA table_info(barbeiros)`, (erro, colunas) => {
   }
 
   const temEmail = colunas.some((coluna) => coluna.name === "email");
+  const temFoto = colunas.some((coluna) => coluna.name === "foto");
 
   if (!temEmail) {
     db.run(`ALTER TABLE barbeiros ADD COLUMN email TEXT`, (erroAlteracao) => {
@@ -127,6 +275,16 @@ db.all(`PRAGMA table_info(barbeiros)`, (erro, colunas) => {
         console.error("Erro ao adicionar coluna email:", erroAlteracao.message);
       } else {
         console.log("Coluna email adicionada aos barbeiros!");
+      }
+    });
+  }
+
+  if (!temFoto) {
+    db.run(`ALTER TABLE barbeiros ADD COLUMN foto TEXT DEFAULT ''`, (erroAlteracao) => {
+      if (erroAlteracao) {
+        console.error("Erro ao adicionar coluna foto:", erroAlteracao.message);
+      } else {
+        console.log("Coluna foto adicionada aos barbeiros!");
       }
     });
   }
@@ -686,11 +844,14 @@ app.post("/app/login", (req, res) => {
         });
       }
 
+      const token = gerarTokenAcesso(barbeiro);
+
       res.json({
         sucesso: true,
         barbeiro: barbeiro.usuario,
         nome: barbeiro.nome,
         email: barbeiro.email,
+        token,
       });
     },
   );
@@ -1747,8 +1908,9 @@ app.delete("/app/bloqueios/:id", (req, res) => {
     `
       DELETE FROM bloqueios
       WHERE id = ?
+        AND barbeiro = ?
     `,
-    [id],
+    [id, req.usuarioAutenticado],
     function (erro) {
       if (erro) {
         console.error(erro);
@@ -1889,8 +2051,9 @@ app.put("/app/agendamentos/:id", (req, res) => {
       WHERE id = ?
         AND fixo = 0
         AND status = 'Confirmado'
+        AND barbeiro = ?
     `,
-    [id],
+    [id, req.usuarioAutenticado],
     (erroAgendamento, agendamento) => {
       if (erroAgendamento) {
         console.error(erroAgendamento);
@@ -2051,8 +2214,9 @@ app.put("/finalizar/:id", (req, res) => {
       SET status = 'Finalizado'
       WHERE id = ?
         AND fixo = 0
+        AND barbeiro = ?
     `,
-    [id],
+    [id, req.usuarioAutenticado],
     function (erro) {
       if (erro) {
         return res.status(500).json({
@@ -2093,8 +2257,9 @@ app.delete("/cancelar/:id", (req, res) => {
       SET status = 'Cancelado'
       WHERE id = ?
         AND fixo = 0
+        AND barbeiro = ?
     `,
-    [id],
+    [id, req.usuarioAutenticado],
     function (erro) {
       if (erro) {
         return res.status(500).json({
@@ -2394,8 +2559,9 @@ app.delete("/app/fixos/:id", (req, res) => {
       FROM agendamentos
       WHERE id = ?
         AND fixo = 1
+        AND barbeiro = ?
     `,
-    [id],
+    [id, req.usuarioAutenticado],
     (erro, fixo) => {
       if (erro) {
         console.error(erro);
@@ -2416,8 +2582,9 @@ app.delete("/app/fixos/:id", (req, res) => {
           DELETE FROM agendamentos
           WHERE id = ?
             AND fixo = 1
+            AND barbeiro = ?
         `,
-        [id],
+        [id, req.usuarioAutenticado],
         function (erroDelete) {
           if (erroDelete) {
             console.error(erroDelete);
@@ -2596,8 +2763,16 @@ app.put("/app/clientes/:id", (req, res) => {
           numero_busca = ?,
           atualizado_em = ?
       WHERE id = ?
+        AND barbeiro = ?
     `,
-    [nome, numero, numeroBusca, Date.now(), id],
+    [
+      nome,
+      numero,
+      numeroBusca,
+      Date.now(),
+      id,
+      req.usuarioAutenticado,
+    ],
     function (erro) {
       if (erro) {
         console.error(erro);
@@ -2627,7 +2802,10 @@ app.get("/app/clientes/:id/historico", (req, res) => {
     return res.status(400).json({ erro: "Cliente inválido." });
   }
 
-  db.get(`SELECT * FROM clientes WHERE id = ?`, [id], (erroCliente, cliente) => {
+  db.get(
+    `SELECT * FROM clientes WHERE id = ? AND barbeiro = ?`,
+    [id, req.usuarioAutenticado],
+    (erroCliente, cliente) => {
     if (erroCliente) {
       console.error(erroCliente);
       return res.status(500).json({ erro: "Erro ao carregar cliente." });
@@ -2687,7 +2865,10 @@ app.delete("/app/clientes/:id", (req, res) => {
     return res.status(400).json({ erro: "Cliente inválido." });
   }
 
-  db.run(`DELETE FROM clientes WHERE id = ?`, [id], function (erro) {
+  db.run(
+    `DELETE FROM clientes WHERE id = ? AND barbeiro = ?`,
+    [id, req.usuarioAutenticado],
+    function (erro) {
     if (erro) {
       console.error(erro);
       return res.status(500).json({ erro: "Erro ao excluir cliente." });
@@ -2797,6 +2978,318 @@ app.get("/app/relatorios/:barbeiro", (req, res) => {
         servicos,
         top_clientes: topClientes,
       });
+    },
+  );
+});
+
+
+// ======================================================
+// PERFIL DO BARBEIRO
+// ======================================================
+
+app.get("/app/perfil/:barbeiro", (req, res) => {
+  const usuario = req.usuarioAutenticado;
+
+  db.get(
+    `
+      SELECT id, nome, usuario, email, COALESCE(foto, '') AS foto
+      FROM barbeiros
+      WHERE usuario = ?
+    `,
+    [usuario],
+    (erro, barbeiro) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({
+          erro: "Erro ao buscar perfil.",
+        });
+      }
+
+      if (!barbeiro) {
+        return res.status(404).json({
+          erro: "Barbeiro não encontrado.",
+        });
+      }
+
+      res.json(barbeiro);
+    },
+  );
+});
+
+app.put("/app/perfil/:barbeiro", (req, res) => {
+  const usuario = req.usuarioAutenticado;
+
+  const nome = String(req.body.nome || "").trim();
+  const email = String(req.body.email || "")
+    .trim()
+    .toLowerCase();
+
+  const foto = String(req.body.foto || "");
+
+  if (!nome || !email) {
+    return res.status(400).json({
+      erro: "Preencha nome e e-mail.",
+    });
+  }
+
+  const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailValido.test(email)) {
+    return res.status(400).json({
+      erro: "Digite um e-mail válido.",
+    });
+  }
+
+  db.get(
+    `
+      SELECT id
+      FROM barbeiros
+      WHERE LOWER(email) = LOWER(?)
+        AND usuario != ?
+    `,
+    [email, usuario],
+    (erroEmail, existente) => {
+      if (erroEmail) {
+        console.error(erroEmail);
+        return res.status(500).json({
+          erro: "Erro ao verificar e-mail.",
+        });
+      }
+
+      if (existente) {
+        return res.status(400).json({
+          erro: "Este e-mail já está sendo usado por outra conta.",
+        });
+      }
+
+      db.run(
+        `
+          UPDATE barbeiros
+          SET nome = ?,
+              email = ?,
+              foto = ?
+          WHERE usuario = ?
+        `,
+        [nome, email, foto, usuario],
+        function (erroUpdate) {
+          if (erroUpdate) {
+            console.error(erroUpdate);
+            return res.status(500).json({
+              erro: "Erro ao atualizar perfil.",
+            });
+          }
+
+          if (this.changes === 0) {
+            return res.status(404).json({
+              erro: "Barbeiro não encontrado.",
+            });
+          }
+
+          res.json({
+            sucesso: true,
+            mensagem: "Perfil atualizado com sucesso!",
+            nome,
+            usuario,
+            email,
+            foto,
+          });
+        },
+      );
+    },
+  );
+});
+
+app.put("/app/perfil/:barbeiro/senha", (req, res) => {
+  const usuario = normalizarBarbeiro(req.params.barbeiro);
+
+  const senhaAtual = String(req.body.senhaAtual || "");
+  const novaSenha = String(req.body.novaSenha || "");
+  const confirmarSenha = String(req.body.confirmarSenha || "");
+
+  if (!senhaAtual || !novaSenha || !confirmarSenha) {
+    return res.status(400).json({
+      erro: "Preencha todos os campos de senha.",
+    });
+  }
+
+  if (novaSenha.length < 4) {
+    return res.status(400).json({
+      erro: "A nova senha precisa ter pelo menos 4 caracteres.",
+    });
+  }
+
+  if (novaSenha !== confirmarSenha) {
+    return res.status(400).json({
+      erro: "As novas senhas não coincidem.",
+    });
+  }
+
+  db.get(
+    `
+      SELECT *
+      FROM barbeiros
+      WHERE usuario = ?
+    `,
+    [usuario],
+    (erro, barbeiro) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({
+          erro: "Erro ao buscar conta.",
+        });
+      }
+
+      if (!barbeiro) {
+        return res.status(404).json({
+          erro: "Barbeiro não encontrado.",
+        });
+      }
+
+      const senhaCorreta = verificarSenha(
+        senhaAtual,
+        barbeiro.senha_salt,
+        barbeiro.senha_hash,
+      );
+
+      if (!senhaCorreta) {
+        return res.status(400).json({
+          erro: "Senha atual incorreta.",
+        });
+      }
+
+      const { salt, hash } = gerarSenhaSegura(novaSenha);
+
+      db.run(
+        `
+          UPDATE barbeiros
+          SET senha_hash = ?,
+              senha_salt = ?
+          WHERE id = ?
+        `,
+        [hash, salt, barbeiro.id],
+        function (erroUpdate) {
+          if (erroUpdate) {
+            console.error(erroUpdate);
+            return res.status(500).json({
+              erro: "Erro ao alterar senha.",
+            });
+          }
+
+          res.json({
+            sucesso: true,
+            mensagem: "Senha alterada com sucesso!",
+          });
+        },
+      );
+    },
+  );
+});
+
+
+// ======================================================
+// ALTERAR SENHA DO BARBEIRO
+// ======================================================
+
+app.post("/app/alterar-senha", (req, res) => {
+  const usuario = req.usuarioAutenticado;
+
+  const senhaAtual = String(req.body.senhaAtual || "");
+  const novaSenha = String(req.body.novaSenha || "");
+  const confirmarSenha = String(req.body.confirmarSenha || "");
+
+  if (!usuario || !senhaAtual || !novaSenha || !confirmarSenha) {
+    return res.status(400).json({
+      erro: "Preencha todos os campos.",
+    });
+  }
+
+  if (novaSenha.length < 4) {
+    return res.status(400).json({
+      erro: "A nova senha precisa ter pelo menos 4 caracteres.",
+    });
+  }
+
+  if (novaSenha !== confirmarSenha) {
+    return res.status(400).json({
+      erro: "As novas senhas não coincidem.",
+    });
+  }
+
+  db.get(
+    `
+      SELECT *
+      FROM barbeiros
+      WHERE usuario = ?
+    `,
+    [usuario],
+    (erro, barbeiro) => {
+      if (erro) {
+        console.error("Erro ao buscar barbeiro para alterar senha:", erro);
+
+        return res.status(500).json({
+          erro: "Erro ao buscar a conta.",
+        });
+      }
+
+      if (!barbeiro) {
+        return res.status(404).json({
+          erro: "Barbeiro não encontrado.",
+        });
+      }
+
+      let senhaCorreta = false;
+
+      try {
+        senhaCorreta = verificarSenha(
+          senhaAtual,
+          barbeiro.senha_salt,
+          barbeiro.senha_hash,
+        );
+      } catch (erroSenha) {
+        console.error("Erro ao validar senha atual:", erroSenha);
+
+        return res.status(500).json({
+          erro: "Não foi possível validar a senha atual.",
+        });
+      }
+
+      if (!senhaCorreta) {
+        return res.status(400).json({
+          erro: "Senha atual incorreta.",
+        });
+      }
+
+      const { salt, hash } = gerarSenhaSegura(novaSenha);
+
+      db.run(
+        `
+          UPDATE barbeiros
+          SET senha_hash = ?,
+              senha_salt = ?
+          WHERE id = ?
+        `,
+        [hash, salt, barbeiro.id],
+        function (erroUpdate) {
+          if (erroUpdate) {
+            console.error("Erro ao atualizar senha:", erroUpdate);
+
+            return res.status(500).json({
+              erro: "Erro ao alterar a senha.",
+            });
+          }
+
+          if (this.changes === 0) {
+            return res.status(500).json({
+              erro: "A senha não foi alterada.",
+            });
+          }
+
+          return res.json({
+            sucesso: true,
+            mensagem: "Senha alterada com sucesso!",
+          });
+        },
+      );
     },
   );
 });
