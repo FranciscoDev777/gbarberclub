@@ -1005,8 +1005,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   List<dynamic> fixos = [];
   List<dynamic> bloqueios = [];
   List<dynamic> historico = [];
+  List<dynamic> clientes = [];
 
   final TextEditingController pesquisaHistoricoController =
+      TextEditingController();
+  final TextEditingController pesquisaClientesController =
       TextEditingController();
   String? dataFiltroHistorico;
 
@@ -1055,6 +1058,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     timer?.cancel();
     tokenRefreshSubscription?.cancel();
     pesquisaHistoricoController.dispose();
+    pesquisaClientesController.dispose();
     super.dispose();
   }
 
@@ -1073,6 +1077,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         http.get(Uri.parse('$api/app/fixos/${widget.barbeiro}')),
         http.get(Uri.parse('$api/app/bloqueios/${widget.barbeiro}')),
         http.get(Uri.parse('$api/app/historico/${widget.barbeiro}')),
+        http.get(Uri.parse('$api/app/clientes/${widget.barbeiro}')),
       ]);
 
       if (!mounted) return;
@@ -1104,6 +1109,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
       if (respostas[5].statusCode == 200) {
         historico = jsonDecode(respostas[5].body);
+      }
+
+      if (respostas[6].statusCode == 200) {
+        clientes = jsonDecode(respostas[6].body);
       }
     } catch (_) {}
 
@@ -1504,13 +1513,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
   @override
   Widget build(BuildContext context) {
-    final titulos = [
-      'Hoje',
-      'Semana',
-      'Horários fixos',
-      'Bloqueios',
-      'Histórico',
-    ];
+    final titulos = ['Hoje', 'Semana', 'Clientes', 'Mais'];
 
     return Scaffold(
       appBar: AppBar(
@@ -1524,9 +1527,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
               height: 45,
               fit: BoxFit.contain,
             ),
-
             const SizedBox(width: 10),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1550,16 +1551,6 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         ),
         actions: [
           IconButton(onPressed: carregarTudo, icon: const Icon(Icons.refresh)),
-          IconButton(
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                (_) => false,
-              );
-            },
-            icon: const Icon(Icons.logout),
-          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(35),
@@ -1578,7 +1569,6 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           ),
         ),
       ),
-
       body: carregando
           ? const Center(child: CircularProgressIndicator(color: corAzul))
           : pagina == 0
@@ -1586,11 +1576,8 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           : pagina == 1
           ? telaSemana()
           : pagina == 2
-          ? telaFixos()
-          : pagina == 3
-          ? telaBloqueios()
-          : telaHistorico(),
-
+          ? telaClientes()
+          : telaMais(),
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF151515),
         indicatorColor: const Color(0xFF263B45),
@@ -1612,23 +1599,138 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             label: 'Semana',
           ),
           NavigationDestination(
-            icon: Icon(Icons.event_repeat_outlined),
-            selectedIcon: Icon(Icons.event_repeat, color: corAzul),
-            label: 'Fixos',
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people, color: corAzul),
+            label: 'Clientes',
           ),
           NavigationDestination(
-            icon: Icon(Icons.block_outlined),
-            selectedIcon: Icon(Icons.block, color: corAzul),
-            label: 'Bloqueios',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history, color: corAzul),
-            label: 'Histórico',
+            icon: Icon(Icons.more_horiz),
+            selectedIcon: Icon(Icons.more_horiz, color: corAzul),
+            label: 'Mais',
           ),
         ],
       ),
     );
+  }
+
+  Widget telaMais() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Gerenciamento',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Acesse as outras ferramentas do painel.',
+          style: TextStyle(color: corTextoSecundario),
+        ),
+        const SizedBox(height: 18),
+        _opcaoMais(
+          icone: Icons.event_repeat_outlined,
+          titulo: 'Horários fixos',
+          subtitulo: 'Gerencie clientes com horário semanal',
+          aoClicar: () => _abrirPaginaMais('Horários fixos', telaFixos),
+        ),
+        _opcaoMais(
+          icone: Icons.block_outlined,
+          titulo: 'Bloqueios',
+          subtitulo: 'Bloqueie horários ou dias da agenda',
+          aoClicar: () => _abrirPaginaMais('Bloqueios', telaBloqueios),
+        ),
+        _opcaoMais(
+          icone: Icons.history_outlined,
+          titulo: 'Histórico',
+          subtitulo: 'Consulte atendimentos anteriores',
+          aoClicar: () => _abrirPaginaMais('Histórico', telaHistorico),
+        ),
+        _opcaoMais(
+          icone: Icons.bar_chart_outlined,
+          titulo: 'Relatórios',
+          subtitulo: 'Faturamento, serviços e desempenho',
+          aoClicar: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RelatoriosPage(
+                  barbeiro: widget.barbeiro,
+                  nomeBarbeiro: widget.nome,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _opcaoMais(
+          icone: Icons.logout,
+          titulo: 'Sair da conta',
+          subtitulo: 'Voltar para a tela de login',
+          corIcone: Colors.redAccent,
+          aoClicar: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+              (_) => false,
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _opcaoMais({
+    required IconData icone,
+    required String titulo,
+    required String subtitulo,
+    required VoidCallback aoClicar,
+    Color corIcone = corAzul,
+  }) {
+    return Card(
+      color: corCard,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: corIcone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icone, color: corIcone),
+        ),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          subtitulo,
+          style: const TextStyle(color: corTextoSecundario),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: corTextoSecundario),
+        onTap: aoClicar,
+      ),
+    );
+  }
+
+  Future<void> _abrirPaginaMais(
+    String titulo,
+    Widget Function() construirTela,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(titulo)),
+          body: construirTela(),
+        ),
+      ),
+    );
+    if (mounted) {
+      await carregarTudo(exibirLoading: false);
+    }
   }
 
   // ====================================================
@@ -2033,6 +2135,370 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             ...porData[data]!.map((item) => cardHistorico(item)),
             const SizedBox(height: 8),
           ],
+        ],
+      ),
+    );
+  }
+
+  // ====================================================
+  // TELA CLIENTES
+  // ====================================================
+
+  Widget telaClientes() {
+    final pesquisa = pesquisaClientesController.text.trim().toLowerCase();
+    final lista = clientes.where((item) {
+      final nome = (item['nome'] ?? '').toString().toLowerCase();
+      final numero = (item['numero'] ?? '').toString().toLowerCase();
+      return pesquisa.isEmpty ||
+          nome.contains(pesquisa) ||
+          numero.contains(pesquisa);
+    }).toList();
+
+    return RefreshIndicator(
+      color: corAzul,
+      onRefresh: carregarTudo,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Clientes',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Cadastro e histórico dos seus clientes.',
+                      style: TextStyle(color: corTextoSecundario),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton.filled(
+                tooltip: 'Novo cliente',
+                onPressed: () => abrirFormularioCliente(),
+                icon: const Icon(Icons.person_add_alt_1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          TextField(
+            controller: pesquisaClientesController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Pesquisar cliente',
+              hintText: 'Nome ou telefone',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: pesquisaClientesController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        pesquisaClientesController.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (lista.isEmpty) mensagemVazia('Nenhum cliente encontrado.'),
+          ...lista.map(cardCliente),
+        ],
+      ),
+    );
+  }
+
+  Widget cardCliente(dynamic item) {
+    final nome = (item['nome'] ?? '').toString();
+    final numero = (item['numero'] ?? '').toString();
+    final atendimentos = numeroInt(item['total_atendimentos']);
+    final gasto = numeroDouble(item['total_gasto']);
+    final ultimo = (item['ultimo_atendimento'] ?? '').toString();
+
+    return Card(
+      color: corCard,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => abrirDetalhesCliente(item),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFF263B45),
+                child: Text(
+                  nome.isEmpty ? '?' : nome[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: corAzul,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nome,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (numero.isNotEmpty)
+                      Text(
+                        numero,
+                        style: const TextStyle(color: corTextoSecundario),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$atendimentos atendimento${atendimentos == 1 ? '' : 's'} • ${dinheiro(gasto)}',
+                      style: const TextStyle(color: corAzul, fontSize: 12),
+                    ),
+                    if (ultimo.isNotEmpty)
+                      Text(
+                        'Último: ${formatarData(ultimo)}',
+                        style: const TextStyle(
+                          color: corTextoSecundario,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: corTextoSecundario),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> abrirFormularioCliente([dynamic cliente]) async {
+    final nomeController = TextEditingController(
+      text: cliente?['nome']?.toString() ?? '',
+    );
+    final numeroController = TextEditingController(
+      text: cliente?['numero']?.toString() ?? '',
+    );
+    final editando = cliente != null;
+
+    final salvar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: corCard,
+        title: Text(editando ? 'Editar cliente' : 'Novo cliente'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nomeController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nome',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: numeroController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Telefone',
+                prefixIcon: Icon(Icons.phone_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: botaoPrincipal(),
+            child: const Text('SALVAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (salvar != true) return;
+    final nome = nomeController.text.trim();
+    final numero = numeroController.text.trim();
+    if (nome.isEmpty) {
+      if (mounted)
+        mostrarMensagem(context, 'Digite o nome do cliente.', erro: true);
+      return;
+    }
+
+    try {
+      final resposta = editando
+          ? await http.put(
+              Uri.parse('$api/app/clientes/${cliente['id']}'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'nome': nome, 'numero': numero}),
+            )
+          : await http.post(
+              Uri.parse('$api/app/clientes'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'nome': nome,
+                'numero': numero,
+                'barbeiro': widget.barbeiro,
+              }),
+            );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(
+          context,
+          editando ? 'Cliente atualizado!' : 'Cliente cadastrado!',
+        );
+        await carregarTudo(exibirLoading: false);
+      } else {
+        final dados = jsonDecode(resposta.body);
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Erro ao salvar cliente.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+    }
+  }
+
+  Future<void> abrirDetalhesCliente(dynamic cliente) async {
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/app/clientes/${cliente['id']}/historico'),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode != 200) {
+        mostrarMensagem(
+          context,
+          'Erro ao carregar histórico do cliente.',
+          erro: true,
+        );
+        return;
+      }
+      final dados = jsonDecode(resposta.body);
+      final lista = (dados['historico'] as List?) ?? [];
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: corCard,
+        builder: (context) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .75,
+          maxChildSize: .92,
+          builder: (_, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(20),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (cliente['nome'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      abrirFormularioCliente(cliente);
+                    },
+                    icon: const Icon(Icons.edit_outlined, color: corAzul),
+                  ),
+                ],
+              ),
+              Text(
+                (cliente['numero'] ?? '').toString(),
+                style: const TextStyle(color: corTextoSecundario),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _miniInfoCliente(
+                      'Atendimentos',
+                      '${numeroInt(dados['total_atendimentos'])}',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _miniInfoCliente(
+                      'Total gasto',
+                      dinheiro(numeroDouble(dados['total_gasto'])),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Histórico',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              if (lista.isEmpty)
+                mensagemVazia('Nenhum atendimento deste cliente.'),
+              ...lista.map((item) => cardHistorico(item)),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+    }
+  }
+
+  Widget _miniInfoCliente(String titulo, String valor) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: corCard2,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: const TextStyle(color: corTextoSecundario, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            valor,
+            style: const TextStyle(
+              color: corAzul,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -3982,6 +4448,210 @@ String nomeDiaSemana(int dia) {
 
     default:
       return 'Dia inválido';
+  }
+}
+
+
+class RelatoriosPage extends StatefulWidget {
+  final String barbeiro;
+  final String nomeBarbeiro;
+
+  const RelatoriosPage({
+    super.key,
+    required this.barbeiro,
+    required this.nomeBarbeiro,
+  });
+
+  @override
+  State<RelatoriosPage> createState() => _RelatoriosPageState();
+}
+
+class _RelatoriosPageState extends State<RelatoriosPage> {
+  bool carregando = true;
+  Map<String, dynamic> dados = {};
+  late DateTime mesSelecionado;
+
+  @override
+  void initState() {
+    super.initState();
+    final agora = DateTime.now();
+    mesSelecionado = DateTime(agora.year, agora.month);
+    carregarRelatorio();
+  }
+
+  String get mesApi =>
+      '${mesSelecionado.year.toString().padLeft(4, '0')}-${mesSelecionado.month.toString().padLeft(2, '0')}';
+
+  String get nomeMes {
+    const meses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+    ];
+    return '${meses[mesSelecionado.month - 1]} ${mesSelecionado.year}';
+  }
+
+  Future<void> carregarRelatorio() async {
+    if (mounted) setState(() => carregando = true);
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/app/relatorios/${widget.barbeiro}?mes=$mesApi'),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        dados = Map<String, dynamic>.from(jsonDecode(resposta.body));
+      } else {
+        mostrarMensagem(context, 'Não foi possível carregar o relatório.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      }
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  void mudarMes(int diferenca) {
+    setState(() {
+      mesSelecionado = DateTime(
+        mesSelecionado.year,
+        mesSelecionado.month + diferenca,
+      );
+    });
+    carregarRelatorio();
+  }
+
+  Widget mensagemVaziaRelatorio(String texto) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2A2A2A)),
+      ),
+      child: Text(
+        texto,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: corTextoSecundario),
+      ),
+    );
+  }
+
+  Widget cardNumero(String titulo, String valor, IconData icone) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2A2A2A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icone, color: corAzul),
+          const SizedBox(height: 10),
+          Text(titulo, style: const TextStyle(color: corTextoSecundario, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(valor, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final servicos = (dados['servicos'] as List?) ?? [];
+    final clientes = (dados['top_clientes'] as List?) ?? [];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Relatórios')),
+      body: carregando
+          ? const Center(child: CircularProgressIndicator(color: corAzul))
+          : RefreshIndicator(
+              color: corAzul,
+              onRefresh: carregarRelatorio,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text('Visão financeira', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
+                  Text('Resultados de ${widget.nomeBarbeiro}', style: const TextStyle(color: corTextoSecundario)),
+                  const SizedBox(height: 18),
+                  GridView.count(
+                    crossAxisCount: MediaQuery.of(context).size.width >= 650 ? 3 : 2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: MediaQuery.of(context).size.width >= 650 ? 2.2 : 1.45,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      cardNumero('Hoje', dinheiro(numeroDouble(dados['faturamento_hoje'])), Icons.today_outlined),
+                      cardNumero('Semana', dinheiro(numeroDouble(dados['faturamento_semana'])), Icons.date_range_outlined),
+                      cardNumero('Mês atual', dinheiro(numeroDouble(dados['faturamento_mes_atual'])), Icons.calendar_month_outlined),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      IconButton(onPressed: () => mudarMes(-1), icon: const Icon(Icons.chevron_left)),
+                      Expanded(
+                        child: Text(nomeMes, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: corAzul)),
+                      ),
+                      IconButton(onPressed: () => mudarMes(1), icon: const Icon(Icons.chevron_right)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: MediaQuery.of(context).size.width >= 650 ? 2.5 : 1.45,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      cardNumero('Faturamento', dinheiro(numeroDouble(dados['faturamento_periodo'])), Icons.attach_money),
+                      cardNumero('Ticket médio', dinheiro(numeroDouble(dados['ticket_medio'])), Icons.receipt_long_outlined),
+                      cardNumero('Atendimentos', numeroInt(dados['atendimentos']).toString(), Icons.content_cut),
+                      cardNumero('Cancelamentos', numeroInt(dados['cancelamentos']).toString(), Icons.cancel_outlined),
+                    ],
+                  ),
+                  const SizedBox(height: 26),
+                  const Text('Serviços realizados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  if (servicos.isEmpty) mensagemVaziaRelatorio('Nenhum atendimento finalizado neste mês.'),
+                  ...servicos.map((item) => Card(
+                    color: corCard,
+                    child: ListTile(
+                      leading: const Icon(Icons.content_cut, color: corAzul),
+                      title: Text((item['servico'] ?? 'Não informado').toString()),
+                      trailing: Text('${numeroInt(item['quantidade'])}x', style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                    ),
+                  )),
+                  const SizedBox(height: 24),
+                  const Text('Clientes que mais voltaram', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  if (clientes.isEmpty) mensagemVaziaRelatorio('Nenhum cliente para este período.'),
+                  ...clientes.asMap().entries.map((entrada) {
+                    final item = entrada.value;
+                    return Card(
+                      color: corCard,
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF263B45),
+                          child: Text('${entrada.key + 1}', style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                        ),
+                        title: Text((item['nome'] ?? 'Cliente').toString()),
+                        subtitle: Text('${numeroInt(item['atendimentos'])} atendimento(s)'),
+                        trailing: Text(dinheiro(numeroDouble(item['total_gasto'])), style: const TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+    );
   }
 }
 

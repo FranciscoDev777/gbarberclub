@@ -5,7 +5,8 @@ const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const admin = require("firebase-admin");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getMessaging } = require("firebase-admin/messaging");
 
 const app = express();
 const PORT = 3000;
@@ -19,8 +20,8 @@ let firebasePushAtivo = false;
 try {
   const serviceAccount = require("./firebase-service-account.json");
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
   });
 
   firebasePushAtivo = true;
@@ -160,6 +161,34 @@ db.run(`
 `);
 
 // ======================================================
+// TABELA DE CLIENTES
+// ======================================================
+
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clientes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      numero TEXT DEFAULT '',
+      numero_busca TEXT DEFAULT '',
+      barbeiro TEXT NOT NULL,
+      criado_em INTEGER NOT NULL,
+      atualizado_em INTEGER NOT NULL
+    )
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_clientes_barbeiro
+    ON clientes(barbeiro)
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_clientes_numero_busca
+    ON clientes(barbeiro, numero_busca)
+  `);
+});
+
+// ======================================================
 // EMAIL - GMAIL
 // ======================================================
 
@@ -218,6 +247,109 @@ function normalizarBarbeiro(nome) {
   return String(nome || "")
     .trim()
     .toLowerCase();
+}
+
+function normalizarNumero(numero) {
+  return String(numero || "").replace(/\D/g, "");
+}
+
+function mesmoCliente(cliente, agendamento) {
+  const numeroCliente = normalizarNumero(cliente.numero);
+  const numeroAgendamento = normalizarNumero(agendamento.numero);
+
+  if (numeroCliente && numeroAgendamento) {
+    return numeroCliente === numeroAgendamento;
+  }
+
+  return (
+    String(cliente.nome || "").trim().toLowerCase() ===
+    String(agendamento.nome || "").trim().toLowerCase()
+  );
+}
+
+function salvarClienteAutomaticamente({ nome, numero, barbeiro }) {
+  return new Promise((resolve, reject) => {
+    nome = String(nome || "").trim();
+    numero = String(numero || "").trim();
+    barbeiro = normalizarBarbeiro(barbeiro);
+
+    const numeroBusca = normalizarNumero(numero);
+    const agora = Date.now();
+
+    if (!nome || !barbeiro) {
+      resolve(null);
+      return;
+    }
+
+    const sqlBusca = numeroBusca
+      ? `
+          SELECT *
+          FROM clientes
+          WHERE barbeiro = ?
+            AND numero_busca = ?
+          LIMIT 1
+        `
+      : `
+          SELECT *
+          FROM clientes
+          WHERE barbeiro = ?
+            AND numero_busca = ''
+            AND LOWER(nome) = LOWER(?)
+          LIMIT 1
+        `;
+
+    const parametrosBusca = numeroBusca
+      ? [barbeiro, numeroBusca]
+      : [barbeiro, nome];
+
+    db.get(sqlBusca, parametrosBusca, (erroBusca, cliente) => {
+      if (erroBusca) {
+        reject(erroBusca);
+        return;
+      }
+
+      if (cliente) {
+        db.run(
+          `
+            UPDATE clientes
+            SET nome = ?,
+                numero = ?,
+                numero_busca = ?,
+                atualizado_em = ?
+            WHERE id = ?
+          `,
+          [nome, numero, numeroBusca, agora, cliente.id],
+          (erroUpdate) => {
+            if (erroUpdate) {
+              reject(erroUpdate);
+              return;
+            }
+
+            resolve(cliente.id);
+          },
+        );
+
+        return;
+      }
+
+      db.run(
+        `
+          INSERT INTO clientes
+          (nome, numero, numero_busca, barbeiro, criado_em, atualizado_em)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [nome, numero, numeroBusca, barbeiro, agora, agora],
+        function (erroInsert) {
+          if (erroInsert) {
+            reject(erroInsert);
+            return;
+          }
+
+          resolve(this.lastID);
+        },
+      );
+    });
+  });
 }
 
 function barbeiroTrabalhaNoDia(barbeiro, diaSemana) {
@@ -364,7 +496,7 @@ async function enviarNotificacaoNovoAgendamento({
     },
   };
 
-  const resposta = await admin.messaging().sendEachForMulticast(mensagem);
+  const resposta = await getMessaging().sendEachForMulticast(mensagem);
 
   console.log(
     `Push enviado para ${barbeiro}: ${resposta.successCount} sucesso(s), ${resposta.failureCount} falha(s).`,
@@ -1133,6 +1265,14 @@ app.post("/agendar", (req, res) => {
                 mensagem: "Agendamento realizado com sucesso!",
               });
 
+              salvarClienteAutomaticamente({
+                nome,
+                numero,
+                barbeiro,
+              }).catch((erroCliente) => {
+                console.error("Erro ao salvar cliente automaticamente:", erroCliente);
+              });
+
               enviarNotificacaoNovoAgendamento({
                 id: agendamentoId,
                 barbeiro,
@@ -1246,10 +1386,20 @@ app.post("/agendar-fixo", (req, res) => {
             });
           }
 
+          const agendamentoId = this.lastID;
+
           res.json({
             sucesso: true,
-            id: this.lastID,
+            id: agendamentoId,
             mensagem: "Horário fixo cadastrado com sucesso!",
+          });
+
+          salvarClienteAutomaticamente({
+            nome,
+            numero,
+            barbeiro,
+          }).catch((erroCliente) => {
+            console.error("Erro ao salvar cliente automaticamente:", erroCliente);
           });
         },
       );
@@ -2283,6 +2433,370 @@ app.delete("/app/fixos/:id", (req, res) => {
           });
         },
       );
+    },
+  );
+});
+
+// ======================================================
+// CLIENTES - LISTAR
+// ======================================================
+
+app.get("/app/clientes/:barbeiro", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  const busca = String(req.query.busca || "").trim().toLowerCase();
+
+  db.all(
+    `
+      SELECT *
+      FROM clientes
+      WHERE barbeiro = ?
+      ORDER BY nome COLLATE NOCASE
+    `,
+    [barbeiro],
+    (erroClientes, clientes) => {
+      if (erroClientes) {
+        console.error(erroClientes);
+        return res.status(500).json({ erro: "Erro ao carregar clientes." });
+      }
+
+      db.all(
+        `
+          SELECT *
+          FROM agendamentos
+          WHERE barbeiro = ?
+            AND fixo = 0
+        `,
+        [barbeiro],
+        (erroAgendamentos, agendamentos) => {
+          if (erroAgendamentos) {
+            console.error(erroAgendamentos);
+            return res.status(500).json({
+              erro: "Erro ao calcular dados dos clientes.",
+            });
+          }
+
+          let resultado = clientes.map((cliente) => {
+            const historico = agendamentos.filter((item) =>
+              mesmoCliente(cliente, item),
+            );
+
+            const finalizados = historico.filter(
+              (item) => item.status === "Finalizado",
+            );
+
+            const totalGasto = finalizados.reduce(
+              (soma, item) => soma + Number(item.valor || 0),
+              0,
+            );
+
+            const datasFinalizadas = finalizados
+              .map((item) => String(item.dia || ""))
+              .filter(Boolean)
+              .sort();
+
+            const ultimoAtendimento =
+              datasFinalizadas.length > 0
+                ? datasFinalizadas[datasFinalizadas.length - 1]
+                : null;
+
+            return {
+              ...cliente,
+              total_atendimentos: finalizados.length,
+              total_gasto: totalGasto,
+              ultimo_atendimento: ultimoAtendimento,
+            };
+          });
+
+          if (busca) {
+            resultado = resultado.filter((cliente) => {
+              const nome = String(cliente.nome || "").toLowerCase();
+              const numero = String(cliente.numero || "").toLowerCase();
+
+              return nome.includes(busca) || numero.includes(busca);
+            });
+          }
+
+          res.json(resultado);
+        },
+      );
+    },
+  );
+});
+
+// ======================================================
+// CLIENTES - CADASTRAR MANUALMENTE
+// ======================================================
+
+app.post("/app/clientes", async (req, res) => {
+  try {
+    let { nome, numero, barbeiro } = req.body;
+
+    nome = String(nome || "").trim();
+    numero = String(numero || "").trim();
+    barbeiro = normalizarBarbeiro(barbeiro);
+
+    if (!nome || !barbeiro) {
+      return res.status(400).json({
+        erro: "Nome e barbeiro são obrigatórios.",
+      });
+    }
+
+    const id = await salvarClienteAutomaticamente({
+      nome,
+      numero,
+      barbeiro,
+    });
+
+    db.get(
+      `SELECT * FROM clientes WHERE id = ?`,
+      [id],
+      (erro, cliente) => {
+        if (erro) {
+          console.error(erro);
+          return res.status(500).json({ erro: "Erro ao carregar cliente." });
+        }
+
+        res.json({
+          sucesso: true,
+          mensagem: "Cliente salvo com sucesso!",
+          cliente,
+        });
+      },
+    );
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao cadastrar cliente." });
+  }
+});
+
+// ======================================================
+// CLIENTES - EDITAR
+// ======================================================
+
+app.put("/app/clientes/:id", (req, res) => {
+  const id = Number(req.params.id);
+  let { nome, numero } = req.body;
+
+  nome = String(nome || "").trim();
+  numero = String(numero || "").trim();
+
+  if (!id || !nome) {
+    return res.status(400).json({
+      erro: "Cliente ou nome inválido.",
+    });
+  }
+
+  const numeroBusca = normalizarNumero(numero);
+
+  db.run(
+    `
+      UPDATE clientes
+      SET nome = ?,
+          numero = ?,
+          numero_busca = ?,
+          atualizado_em = ?
+      WHERE id = ?
+    `,
+    [nome, numero, numeroBusca, Date.now(), id],
+    function (erro) {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao atualizar cliente." });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Cliente atualizado com sucesso!",
+      });
+    },
+  );
+});
+
+// ======================================================
+// CLIENTES - HISTÓRICO
+// ======================================================
+
+app.get("/app/clientes/:id/historico", (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!id) {
+    return res.status(400).json({ erro: "Cliente inválido." });
+  }
+
+  db.get(`SELECT * FROM clientes WHERE id = ?`, [id], (erroCliente, cliente) => {
+    if (erroCliente) {
+      console.error(erroCliente);
+      return res.status(500).json({ erro: "Erro ao carregar cliente." });
+    }
+
+    if (!cliente) {
+      return res.status(404).json({ erro: "Cliente não encontrado." });
+    }
+
+    db.all(
+      `
+        SELECT *
+        FROM agendamentos
+        WHERE barbeiro = ?
+          AND fixo = 0
+        ORDER BY dia DESC, horario DESC
+      `,
+      [cliente.barbeiro],
+      (erroAgendamentos, agendamentos) => {
+        if (erroAgendamentos) {
+          console.error(erroAgendamentos);
+          return res.status(500).json({ erro: "Erro ao carregar histórico." });
+        }
+
+        const historico = agendamentos.filter((item) =>
+          mesmoCliente(cliente, item),
+        );
+
+        const finalizados = historico.filter(
+          (item) => item.status === "Finalizado",
+        );
+
+        const totalGasto = finalizados.reduce(
+          (soma, item) => soma + Number(item.valor || 0),
+          0,
+        );
+
+        res.json({
+          cliente,
+          total_atendimentos: finalizados.length,
+          total_gasto: totalGasto,
+          historico,
+        });
+      },
+    );
+  });
+});
+
+// ======================================================
+// CLIENTES - EXCLUIR CADASTRO
+// ======================================================
+
+app.delete("/app/clientes/:id", (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!id) {
+    return res.status(400).json({ erro: "Cliente inválido." });
+  }
+
+  db.run(`DELETE FROM clientes WHERE id = ?`, [id], function (erro) {
+    if (erro) {
+      console.error(erro);
+      return res.status(500).json({ erro: "Erro ao excluir cliente." });
+    }
+
+    if (this.changes === 0) {
+      return res.status(404).json({ erro: "Cliente não encontrado." });
+    }
+
+    res.json({
+      sucesso: true,
+      mensagem: "Cliente excluído do cadastro.",
+    });
+  });
+});
+
+// ======================================================
+// RELATÓRIOS
+// ======================================================
+
+app.get("/app/relatorios/:barbeiro", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  const mesInformado = String(req.query.mes || "").trim();
+  const hoje = dataHoje();
+  const agora = criarDataLocal(hoje);
+  const inicioSemanaObj = new Date(agora);
+  const diaSemana = inicioSemanaObj.getDay();
+  const deslocamento = diaSemana === 0 ? -6 : 1 - diaSemana;
+  inicioSemanaObj.setDate(inicioSemanaObj.getDate() + deslocamento);
+  const fimSemanaObj = new Date(inicioSemanaObj);
+  fimSemanaObj.setDate(fimSemanaObj.getDate() + 6);
+  const inicioSemana = dataParaString(inicioSemanaObj);
+  const fimSemana = dataParaString(fimSemanaObj);
+  const mesAtual = hoje.substring(0, 7);
+  const mes = /^\d{4}-\d{2}$/.test(mesInformado) ? mesInformado : mesAtual;
+  const inicioMes = `${mes}-01`;
+  const [anoMes, numeroMes] = mes.split("-").map(Number);
+  const ultimoDia = new Date(anoMes, numeroMes, 0).getDate();
+  const fimMes = `${mes}-${String(ultimoDia).padStart(2, "0")}`;
+
+  if (!barbeiro) {
+    return res.status(400).json({ erro: "Barbeiro é obrigatório." });
+  }
+
+  db.all(
+    `SELECT nome, dia, servico, valor, status
+     FROM agendamentos
+     WHERE barbeiro = ? AND fixo = 0 AND dia IS NOT NULL`,
+    [barbeiro],
+    (erro, registros) => {
+      if (erro) {
+        console.error("Erro ao gerar relatório:", erro);
+        return res.status(500).json({ erro: "Erro ao gerar relatório." });
+      }
+
+      const finalizados = registros.filter((a) => a.status === "Finalizado");
+      const canceladosMes = registros.filter(
+        (a) => a.status === "Cancelado" && a.dia >= inicioMes && a.dia <= fimMes,
+      );
+      const finalizadosMes = finalizados.filter(
+        (a) => a.dia >= inicioMes && a.dia <= fimMes,
+      );
+      const soma = (lista) =>
+        lista.reduce((total, a) => total + Number(a.valor || 0), 0);
+
+      const faturamentoHoje = soma(finalizados.filter((a) => a.dia === hoje));
+      const faturamentoSemana = soma(
+        finalizados.filter((a) => a.dia >= inicioSemana && a.dia <= fimSemana),
+      );
+      const faturamentoMesAtual = soma(
+        finalizados.filter((a) => a.dia.startsWith(mesAtual)),
+      );
+      const faturamentoPeriodo = soma(finalizadosMes);
+      const ticketMedio = finalizadosMes.length
+        ? faturamentoPeriodo / finalizadosMes.length
+        : 0;
+
+      const servicosMap = {};
+      for (const a of finalizadosMes) {
+        const nomeServico = String(a.servico || "Não informado").trim() || "Não informado";
+        servicosMap[nomeServico] = (servicosMap[nomeServico] || 0) + 1;
+      }
+      const servicos = Object.entries(servicosMap)
+        .map(([servico, quantidade]) => ({ servico, quantidade }))
+        .sort((a, b) => b.quantidade - a.quantidade);
+
+      const clientesMap = {};
+      for (const a of finalizadosMes) {
+        const nome = String(a.nome || "Cliente").trim() || "Cliente";
+        if (!clientesMap[nome]) clientesMap[nome] = { nome, atendimentos: 0, total_gasto: 0 };
+        clientesMap[nome].atendimentos += 1;
+        clientesMap[nome].total_gasto += Number(a.valor || 0);
+      }
+      const topClientes = Object.values(clientesMap)
+        .sort((a, b) => b.atendimentos - a.atendimentos || b.total_gasto - a.total_gasto)
+        .slice(0, 5);
+
+      res.json({
+        mes,
+        faturamento_hoje: faturamentoHoje,
+        faturamento_semana: faturamentoSemana,
+        faturamento_mes_atual: faturamentoMesAtual,
+        faturamento_periodo: faturamentoPeriodo,
+        atendimentos: finalizadosMes.length,
+        cancelamentos: canceladosMes.length,
+        ticket_medio: ticketMedio,
+        servicos,
+        top_clientes: topClientes,
+      });
     },
   );
 });

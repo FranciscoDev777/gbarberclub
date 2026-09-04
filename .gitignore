@@ -1,7 +1,8 @@
 # Google/Firebase credentials
 app_barbeiro/lib-8877e-firebase-adminsdk-fbsvc-af5908ae7f.json
 
-*firebase-adminsdk*.json
+*firebase-service-account*.json
+
 
 # Variáveis de ambiente
 .env
