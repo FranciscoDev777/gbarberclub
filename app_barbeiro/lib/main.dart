@@ -13,7 +13,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String api = 'http://10.133.126.27:3000';
+const String api = 'http://10.133.126.19:3000';
 
 String authToken = '';
 
@@ -1044,6 +1044,14 @@ class PainelBarbeiro extends StatefulWidget {
 }
 
 class _PainelBarbeiroState extends State<PainelBarbeiro> {
+
+  String formatarDataBackend(DateTime data) {
+    final ano = data.year.toString().padLeft(4, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final dia = data.day.toString().padLeft(2, '0');
+    return '$ano-$mes-$dia';
+  }
+
   List<dynamic> hoje = [];
   List<dynamic> semana = [];
   List<dynamic> fixos = [];
@@ -1056,6 +1064,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   final TextEditingController pesquisaClientesController =
       TextEditingController();
   String? dataFiltroHistorico;
+
+  // Data atualmente selecionada na Agenda.
+  DateTime dataAgendaSelecionada = DateTime.now();
 
   int total = 0;
 
@@ -2364,29 +2375,766 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   // ====================================================
 
   Widget telaSemana() {
+    final agora = DateTime.now();
+
+    // Segunda-feira da semana atual.
+    final segunda = DateTime(
+      agora.year,
+      agora.month,
+      agora.day,
+    ).subtract(Duration(days: agora.weekday - 1));
+
+    final diasSemana = List.generate(
+      7,
+      (index) => segunda.add(Duration(days: index)),
+    );
+
+    final dataSelecionada = DateTime(
+      dataAgendaSelecionada.year,
+      dataAgendaSelecionada.month,
+      dataAgendaSelecionada.day,
+    );
+
+    final dataSelecionadaTexto =
+        formatarDataBackend(dataSelecionada);
+
+    final agendamentosDoDia = semana.where((item) {
+      final dia = (item['dia'] ?? '').toString();
+      return dia == dataSelecionadaTexto;
+    }).toList();
+
+    agendamentosDoDia.sort((a, b) {
+      return minutosDoHorario(
+        (a['horario'] ?? '').toString(),
+      ).compareTo(
+        minutosDoHorario(
+          (b['horario'] ?? '').toString(),
+        ),
+      );
+    });
+
+    final ativos = agendamentosDoDia.where((item) {
+      return !agendamentoCancelado(item) &&
+          !agendamentoFinalizado(item);
+    }).length;
+
+    final concluidos = agendamentosDoDia.where(
+      agendamentoFinalizado,
+    ).length;
+
+    final cancelados = agendamentosDoDia.where(
+      agendamentoCancelado,
+    ).length;
+
+    double faturamento = 0;
+    for (final item in agendamentosDoDia) {
+      if (agendamentoFinalizado(item)) {
+        faturamento += numeroDouble(item['valor']);
+      }
+    }
+
+    String nomeCurtoDia(int weekday) {
+      const nomes = [
+        'SEG',
+        'TER',
+        'QUA',
+        'QUI',
+        'SEX',
+        'SÁB',
+        'DOM',
+      ];
+      return nomes[weekday - 1];
+    }
+
     return RefreshIndicator(
       color: corAzul,
       onRefresh: carregarTudo,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
-          const Text(
-            'Agenda da semana',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 7),
-
-          const Text(
-            'Todos os seus horários desta semana',
-            style: TextStyle(color: corTextoSecundario),
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Agenda',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Organize seus atendimentos da semana',
+                      style: TextStyle(
+                        color: corTextoSecundario,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: abrirNovoAgendamento,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: corAzul,
+                  side: const BorderSide(color: corAzul),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.add,
+                  size: 19,
+                ),
+                label: const Text(
+                  'AGENDAR',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 18),
 
-          if (semana.isEmpty) mensagemVazia('Nenhum agendamento nesta semana.'),
+          // Seletor dos dias da semana.
+          SizedBox(
+            height: 84,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: diasSemana.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final dia = diasSemana[index];
 
-          ...semana.map((item) => cardAgendamento(item, mostrarData: true)),
+                final selecionado =
+                    dia.year == dataSelecionada.year &&
+                    dia.month == dataSelecionada.month &&
+                    dia.day == dataSelecionada.day;
+
+                final ehHoje =
+                    dia.year == agora.year &&
+                    dia.month == agora.month &&
+                    dia.day == agora.day;
+
+                final diaTexto =
+                    formatarDataBackend(dia);
+
+                final quantidade = semana.where((item) {
+                  return (item['dia'] ?? '').toString() ==
+                      diaTexto &&
+                      !agendamentoCancelado(item);
+                }).length;
+
+                return SizedBox(
+                  width: 65,
+                  child: Material(
+                    color: selecionado
+                        ? corAzul
+                        : corCard,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        setState(() {
+                          dataAgendaSelecionada = dia;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 9,
+                          horizontal: 5,
+                        ),
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              nomeCurtoDia(dia.weekday),
+                              style: TextStyle(
+                                color: selecionado
+                                    ? Colors.black
+                                    : corTextoSecundario,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${dia.day}',
+                              style: TextStyle(
+                                color: selecionado
+                                    ? Colors.black
+                                    : Colors.white,
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
+                              children: [
+                                if (ehHoje && !selecionado)
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    margin:
+                                        const EdgeInsets.only(right: 3),
+                                    decoration: const BoxDecoration(
+                                      color: corAzul,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                Text(
+                                  quantidade == 0
+                                      ? 'livre'
+                                      : '$quantidade',
+                                  style: TextStyle(
+                                    color: selecionado
+                                        ? Colors.black87
+                                        : corTextoSecundario,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Atalho para voltar para hoje.
+          if (dataSelecionada.year != agora.year ||
+              dataSelecionada.month != agora.month ||
+              dataSelecionada.day != agora.day)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    dataAgendaSelecionada = DateTime.now();
+                  });
+                },
+                icon: const Icon(
+                  Icons.today_outlined,
+                  size: 18,
+                ),
+                label: const Text('VOLTAR PARA HOJE'),
+                style: TextButton.styleFrom(
+                  foregroundColor: corAzul,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 4),
+
+          // Resumo do dia selecionado.
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: corCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF2B2B2B),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 47,
+                  height: 47,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF202A2F),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_today_outlined,
+                    color: corAzul,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        formatarData(dataSelecionadaTexto),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$ativos pendente${ativos == 1 ? '' : 's'} • '
+                        '$concluidos concluído${concluidos == 1 ? '' : 's'}'
+                        '${cancelados > 0 ? ' • $cancelados cancelado${cancelados == 1 ? '' : 's'}' : ''}',
+                        style: const TextStyle(
+                          color: corTextoSecundario,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (faturamento > 0)
+                  Text(
+                    dinheiro(faturamento),
+                    style: const TextStyle(
+                      color: corAzul,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          if (agendamentosDoDia.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 34,
+              ),
+              decoration: BoxDecoration(
+                color: corCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFF2B2B2B),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.event_available_outlined,
+                    color: corTextoSecundario,
+                    size: 42,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nenhum agendamento neste dia',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Você pode adicionar um cliente manualmente.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: corTextoSecundario,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: abrirNovoAgendamento,
+                      style: botaoPrincipal(),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text(
+                        'NOVO AGENDAMENTO',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...agendamentosDoDia.map((item) {
+              final horario =
+                  (item['horario'] ?? '').toString();
+              final cancelado = agendamentoCancelado(item);
+              final finalizado = agendamentoFinalizado(item);
+              final fixo = numeroInt(item['fixo']) == 1;
+
+              final minutos =
+                  minutosDoHorario(horario);
+              final agoraMinutos =
+                  (agora.hour * 60) + agora.minute;
+
+              final ehHoje =
+                  dataSelecionada.year == agora.year &&
+                  dataSelecionada.month == agora.month &&
+                  dataSelecionada.day == agora.day;
+
+              final jaPassou =
+                  ehHoje && minutos < agoraMinutos;
+
+              final corLinha = cancelado
+                  ? Colors.redAccent
+                  : finalizado
+                      ? Colors.greenAccent
+                      : jaPassou
+                          ? Colors.orangeAccent
+                          : corAzul;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: corCard,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(
+                    color: const Color(0xFF2B2B2B),
+                  ),
+                ),
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 5,
+                        decoration: BoxDecoration(
+                          color: corLinha,
+                          borderRadius:
+                              const BorderRadius.horizontal(
+                            left: Radius.circular(15),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            13,
+                            13,
+                            12,
+                            13,
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding:
+                                        const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF202A2F),
+                                      borderRadius:
+                                          BorderRadius.circular(9),
+                                    ),
+                                    child: Text(
+                                      horario,
+                                      style: TextStyle(
+                                        color: corLinha,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 9),
+                                  if (jaPassou &&
+                                      !finalizado &&
+                                      !cancelado)
+                                    Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orangeAccent
+                                            .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'ATRASADO',
+                                        style: TextStyle(
+                                          color: Colors.orangeAccent,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  if (fixo) ...[
+                                    if (jaPassou &&
+                                        !finalizado &&
+                                        !cancelado)
+                                      const SizedBox(width: 5),
+                                    Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF22343D),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'FIXO',
+                                        style: TextStyle(
+                                          color: corAzul,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  Text(
+                                    dinheiro(
+                                      numeroDouble(item['valor']),
+                                    ),
+                                    style: const TextStyle(
+                                      color: corAzul,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 11),
+
+                              Text(
+                                (item['nome'] ?? 'Cliente').toString(),
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+
+                              if ((item['servico'] ?? '')
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  (item['servico'] ?? '')
+                                      .toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+
+                              if ((item['numero'] ?? '')
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  (item['numero'] ?? '')
+                                      .toString(),
+                                  style: const TextStyle(
+                                    color: corTextoSecundario,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 11),
+
+                              if (cancelado)
+                                _statusAgenda(
+                                  texto: 'CANCELADO',
+                                  icone: Icons.cancel_outlined,
+                                  cor: Colors.redAccent,
+                                )
+                              else if (finalizado)
+                                _statusAgenda(
+                                  texto: 'FINALIZADO',
+                                  icone: Icons.check_circle_outline,
+                                  cor: Colors.greenAccent,
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 40,
+                                        child: OutlinedButton.icon(
+                                          onPressed: fixo
+                                              ? null
+                                              : () {
+                                                  abrirWhatsApp(item);
+                                                },
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor:
+                                                Colors.greenAccent,
+                                            side: BorderSide(
+                                              color: fixo
+                                                  ? Colors.grey.shade800
+                                                  : Colors.greenAccent,
+                                            ),
+                                            shape:
+                                                RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                9,
+                                              ),
+                                            ),
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                            ),
+                                          ),
+                                          icon: const Icon(
+                                            Icons.chat_outlined,
+                                            size: 17,
+                                          ),
+                                          label: const Text(
+                                            'WHATSAPP',
+                                            style: TextStyle(
+                                              fontWeight:
+                                                  FontWeight.bold,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 40,
+                                        child: OutlinedButton.icon(
+                                          onPressed: fixo
+                                              ? null
+                                              : () {
+                                                  editarAgendamento(item);
+                                                },
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: corAzul,
+                                            side: BorderSide(
+                                              color: fixo
+                                                  ? Colors.grey.shade800
+                                                  : corAzul,
+                                            ),
+                                            shape:
+                                                RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                9,
+                                              ),
+                                            ),
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                            ),
+                                          ),
+                                          icon: const Icon(
+                                            Icons.edit_calendar_outlined,
+                                            size: 17,
+                                          ),
+                                          label: const Text(
+                                            'REMARCAR',
+                                            style: TextStyle(
+                                              fontWeight:
+                                                  FontWeight.bold,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 7),
+                                    SizedBox(
+                                      height: 40,
+                                      width: 105,
+                                      child: ElevatedButton.icon(
+                                        onPressed: fixo
+                                            ? null
+                                            : () {
+                                                finalizar(
+                                                  numeroInt(item['id']),
+                                                );
+                                              },
+                                        style: botaoPrincipal(),
+                                        icon: const Icon(
+                                          Icons.check,
+                                          size: 17,
+                                        ),
+                                        label: const Text(
+                                          'FINALIZAR',
+                                          style: TextStyle(
+                                            fontWeight:
+                                                FontWeight.bold,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusAgenda({
+    required String texto,
+    required IconData icone,
+    required Color cor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icone, color: cor, size: 18),
+          const SizedBox(width: 6),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cor,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
@@ -4195,6 +4943,14 @@ class _EditarAgendamentoPageState extends State<EditarAgendamentoPage> {
       ),
     );
   }
+
+  String formatarDataBackend(DateTime data) {
+    final ano = data.year.toString().padLeft(4, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final dia = data.day.toString().padLeft(2, '0');
+    return '$ano-$mes-$dia';
+  }
+
 }
 
 // ======================================================
