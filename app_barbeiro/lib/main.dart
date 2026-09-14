@@ -13,15 +13,35 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String api = 'http://10.133.126.19:3000';
+const String api = 'http://10.133.126.23:3000';
 
 String authToken = '';
+
+String clienteAuthToken = '';
+int? clienteIdLogado;
+String clienteNomeLogado = '';
+String clienteNumeroLogado = '';
+String clienteEmailLogado = '';
 
 Map<String, String> headersAutenticados({bool json = false}) {
   final headers = <String, String>{};
 
   if (authToken.isNotEmpty) {
     headers['Authorization'] = 'Bearer $authToken';
+  }
+
+  if (json) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  return headers;
+}
+
+Map<String, String> headersCliente({bool json = false}) {
+  final headers = <String, String>{};
+
+  if (clienteAuthToken.isNotEmpty) {
+    headers['Authorization'] = 'Bearer $clienteAuthToken';
   }
 
   if (json) {
@@ -159,7 +179,7 @@ class GBarberClubApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const LoginPage(),
+      home: const ClienteLoginPage(),
     );
   }
 }
@@ -436,19 +456,47 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 14),
 
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const CadastroPage()),
-                      );
-                    },
-                    child: const Text(
-                      'Primeiro acesso? Cadastre-se',
-                      style: TextStyle(color: Colors.white),
+                  const Text(
+                    'Acesso exclusivo para Guel e Gustavo',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: corTextoSecundario,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 58,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ClienteLoginPage()),
+                        );
+                      },
+                      icon: const Icon(Icons.person_outline, size: 22),
+                      label: const Text(
+                        'SOU UM CLIENTE',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: corAzul,
+                        side: const BorderSide(color: corAzul, width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'Acessar área de cliente',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: corTextoSecundario, fontSize: 11),
                   ),
                 ],
               ),
@@ -463,6 +511,2148 @@ class _LoginPageState extends State<LoginPage> {
 // ======================================================
 // CADASTRO
 // ======================================================
+
+
+class ClienteLoginPage extends StatefulWidget {
+  const ClienteLoginPage({super.key});
+
+  @override
+  State<ClienteLoginPage> createState() => _ClienteLoginPageState();
+}
+
+class _ClienteLoginPageState extends State<ClienteLoginPage> {
+  final emailController = TextEditingController();
+  final senhaController = TextEditingController();
+  bool carregando = false;
+  bool mostrarSenha = false;
+
+  Future<void> entrar() async {
+    final email = emailController.text.trim();
+    final senha = senhaController.text;
+
+    if (email.isEmpty || senha.isEmpty) {
+      mostrarMensagem(context, 'Digite e-mail e senha.', erro: true);
+      return;
+    }
+
+    setState(() => carregando = true);
+
+    try {
+      final resposta = await http.post(
+        Uri.parse('$api/cliente/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'senha': senha}),
+      );
+
+      final dados = jsonDecode(resposta.body);
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        clienteAuthToken = dados['token']?.toString() ?? '';
+        clienteIdLogado = int.tryParse(dados['id']?.toString() ?? '');
+        clienteNomeLogado = dados['nome']?.toString() ?? 'Cliente';
+        clienteNumeroLogado = dados['numero']?.toString() ?? '';
+        clienteEmailLogado = dados['email']?.toString() ?? email;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ClienteInicioPage(
+              nome: clienteNomeLogado,
+              email: clienteEmailLogado,
+              numero: clienteNumeroLogado,
+            ),
+          ),
+        );
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'E-mail ou senha incorretos.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    senhaController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Área do Cliente')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(25),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 450),
+              child: Column(
+                children: [
+                  logoGBarber(tamanho: 105),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Bem-vindo de volta 👋',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'Entre para acompanhar seus agendamentos.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: corTextoSecundario),
+                  ),
+                  const SizedBox(height: 28),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'E-mail',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: senhaController,
+                    obscureText: !mostrarSenha,
+                    onSubmitted: (_) => entrar(),
+                    decoration: InputDecoration(
+                      labelText: 'Senha',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
+                        icon: Icon(
+                          mostrarSenha
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: carregando ? null : entrar,
+                      style: botaoPrincipal(),
+                      child: carregando
+                          ? const SizedBox(
+                              width: 23,
+                              height: 23,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Text(
+                              'ENTRAR',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ClienteCadastroPage()),
+                      );
+                    },
+                    child: const Text(
+                      'Ainda não tenho conta — Criar cadastro',
+                      style: TextStyle(color: corAzul),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 58,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginPage()),
+                        );
+                      },
+                      icon: const Icon(Icons.content_cut, size: 22),
+                      label: const Text(
+                        'SOU UM BARBEIRO',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: corAzul,
+                        side: const BorderSide(color: corAzul, width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'Acessar painel administrativo',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: corTextoSecundario, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ClienteCadastroPage extends StatefulWidget {
+  const ClienteCadastroPage({super.key});
+
+  @override
+  State<ClienteCadastroPage> createState() => _ClienteCadastroPageState();
+}
+
+class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
+  final nomeController = TextEditingController();
+  final telefoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final senhaController = TextEditingController();
+  final confirmarController = TextEditingController();
+  bool carregando = false;
+  bool mostrarSenha = false;
+
+  Future<void> cadastrar() async {
+    final nome = nomeController.text.trim();
+    final telefone = telefoneController.text.trim();
+    final email = emailController.text.trim();
+    final senha = senhaController.text;
+    final confirmar = confirmarController.text;
+
+    if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
+      mostrarMensagem(context, 'Preencha os campos obrigatórios.', erro: true);
+      return;
+    }
+
+    if (!email.contains('@')) {
+      mostrarMensagem(context, 'Digite um e-mail válido.', erro: true);
+      return;
+    }
+
+    if (senha.length < 6) {
+      mostrarMensagem(context, 'A senha deve ter pelo menos 6 caracteres.', erro: true);
+      return;
+    }
+
+    if (senha != confirmar) {
+      mostrarMensagem(context, 'As senhas não coincidem.', erro: true);
+      return;
+    }
+
+    setState(() => carregando = true);
+
+    try {
+      final resposta = await http.post(
+        Uri.parse('$api/cliente/cadastro'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'nome': nome,
+          'numero': telefone,
+          'email': email,
+          'senha': senha,
+        }),
+      );
+
+      final dados = jsonDecode(resposta.body);
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 201 || resposta.statusCode == 200) {
+        mostrarMensagem(context, 'Cadastro realizado com sucesso!');
+        Navigator.pop(context);
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível criar sua conta.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    telefoneController.dispose();
+    emailController.dispose();
+    senhaController.dispose();
+    confirmarController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Cadastro de Cliente')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(25),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 450),
+              child: Column(
+                children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Crie sua conta',
+                      style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Os campos com * são obrigatórios.',
+                      style: TextStyle(color: corTextoSecundario),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  TextField(
+                    controller: nomeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome completo *',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: telefoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Telefone',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'E-mail *',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: senhaController,
+                    obscureText: !mostrarSenha,
+                    decoration: InputDecoration(
+                      labelText: 'Senha *',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
+                        icon: Icon(
+                          mostrarSenha
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: confirmarController,
+                    obscureText: !mostrarSenha,
+                    onSubmitted: (_) => cadastrar(),
+                    decoration: const InputDecoration(
+                      labelText: 'Confirmar senha *',
+                      prefixIcon: Icon(Icons.lock_reset_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: carregando ? null : cadastrar,
+                      style: botaoPrincipal(),
+                      child: carregando
+                          ? const SizedBox(
+                              width: 23,
+                              height: 23,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Text(
+                              'CRIAR CONTA',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ClienteInicioPage extends StatelessWidget {
+  final String nome;
+  final String email;
+  final String numero;
+
+  const ClienteInicioPage({
+    super.key,
+    required this.nome,
+    required this.email,
+    required this.numero,
+  });
+
+  Future<void> abrirPagina(BuildContext context, Widget page) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Área do Cliente'),
+        actions: [
+          IconButton(
+            tooltip: 'Sair',
+            onPressed: () {
+              clienteAuthToken = '';
+              clienteIdLogado = null;
+              clienteNomeLogado = '';
+              clienteNumeroLogado = '';
+              clienteEmailLogado = '';
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (_) => false,
+              );
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: corCard,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF333333)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: corAzul.withOpacity(.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.person, size: 31, color: corAzul),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Olá, $nome 👋',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              email,
+                              style: const TextStyle(color: corTextoSecundario),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 58,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await abrirPagina(
+                          context,
+                          ClienteAgendamentoPage(nome: nome, numero: numero),
+                        );
+                      },
+                      style: botaoPrincipal(),
+                      icon: const Icon(Icons.calendar_month),
+                      label: const Text(
+                        'AGENDAR HORÁRIO',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _clienteMenuCard(
+              context,
+              Icons.calendar_month_outlined,
+              'Meus agendamentos',
+              'Veja, remarque ou cancele seus horários.',
+              () => abrirPagina(context, const ClienteAgendamentosPage()),
+            ),
+            _clienteMenuCard(
+              context,
+              Icons.history,
+              'Meu histórico',
+              'Consulte seus atendimentos anteriores.',
+              () => abrirPagina(context, const ClienteHistoricoPage()),
+            ),
+            _clienteMenuCard(
+              context,
+              Icons.person_outline,
+              'Meu perfil',
+              'Atualize seus dados e sua senha.',
+              () => abrirPagina(context, const ClientePerfilPage()),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF151515),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF303030)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: corTextoSecundario, size: 19),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Seus agendamentos ficam vinculados à sua conta.',
+                      style: TextStyle(color: corTextoSecundario, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _clienteMenuCard(
+    BuildContext context,
+    IconData icone,
+    String titulo,
+    String subtitulo,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      color: corCard,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        leading: CircleAvatar(
+          backgroundColor: corAzul.withOpacity(.12),
+          child: Icon(icone, color: corAzul),
+        ),
+        title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Text(subtitulo),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// ======================================================
+// CLIENTE - MEUS AGENDAMENTOS
+// ======================================================
+
+class ClienteAgendamentosPage extends StatefulWidget {
+  const ClienteAgendamentosPage({super.key});
+
+  @override
+  State<ClienteAgendamentosPage> createState() => _ClienteAgendamentosPageState();
+}
+
+class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
+  List<dynamic> agendamentos = [];
+  bool carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    carregar();
+  }
+
+  String dataTela(String data) {
+    if (data.length < 10) return data;
+    final p = data.split('-');
+    if (p.length != 3) return data;
+    return '${p[2]}/${p[1]}/${p[0]}';
+  }
+
+  String dinheiro(dynamic valor) {
+    final n = double.tryParse(valor.toString()) ?? 0;
+    return 'R\$ ${n.toStringAsFixed(2).replaceAll('.', ',')}';
+  }
+
+  Color corStatus(String status) {
+    if (status == 'Cancelado') return Colors.redAccent;
+    if (status == 'Finalizado') return Colors.greenAccent;
+    return corAzul;
+  }
+
+  Future<void> carregar() async {
+    setState(() => carregando = true);
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/cliente/agendamentos'),
+        headers: headersCliente(),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        setState(() => agendamentos = dados is List ? dados : []);
+      } else {
+        dynamic dados = {};
+        try { dados = jsonDecode(resposta.body); } catch (_) {}
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível carregar seus agendamentos.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  Future<void> cancelar(dynamic item) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: corCard,
+        title: const Text('Cancelar horário?'),
+        content: const Text('Esse horário será liberado para outro cliente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('VOLTAR'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('CANCELAR'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    try {
+      final resposta = await http.delete(
+        Uri.parse('$api/cliente/agendamentos/${numeroInt(item['id'])}'),
+        headers: headersCliente(),
+      );
+      if (!mounted) return;
+      dynamic dados = {};
+      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(context, 'Agendamento cancelado.');
+        await carregar();
+      } else {
+        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível cancelar.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    }
+  }
+
+  Future<void> remarcar(dynamic item) async {
+    final alterou = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ClienteRemarcarPage(
+          agendamento: item,
+          nome: clienteNomeLogado,
+          numero: clienteNumeroLogado,
+        ),
+      ),
+    );
+    if (alterou == true && mounted) await carregar();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Meus agendamentos'),
+        actions: [
+          IconButton(onPressed: carregar, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: RefreshIndicator(
+        color: corAzul,
+        onRefresh: carregar,
+        child: carregando
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 180),
+                  Center(child: CircularProgressIndicator(color: corAzul)),
+                ],
+              )
+            : agendamentos.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.all(22),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 80),
+                      Icon(Icons.event_available_outlined, size: 65, color: corTextoSecundario),
+                      const SizedBox(height: 15),
+                      const Text(
+                        'Você ainda não tem agendamentos.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Toque em AGENDAR HORÁRIO na tela anterior para marcar seu atendimento.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: corTextoSecundario),
+                      ),
+                    ],
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const Text(
+                        'Seus horários',
+                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Aqui aparecem os horários marcados pela sua conta.',
+                        style: TextStyle(color: corTextoSecundario),
+                      ),
+                      const SizedBox(height: 16),
+                      ...agendamentos.map((item) => _card(item)),
+                    ],
+                  ),
+      ),
+    );
+  }
+
+  Widget _card(dynamic item) {
+    final status = (item['status'] ?? 'Confirmado').toString();
+    final cor = corStatus(status);
+    final fixo = numeroInt(item['fixo']) == 1;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 13),
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFF303030)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: cor.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  (item['horario'] ?? '').toString(),
+                  style: TextStyle(color: cor, fontWeight: FontWeight.w800, fontSize: 17),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  dataTela((item['dia'] ?? '').toString()),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: cor.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  status.toUpperCase(),
+                  style: TextStyle(color: cor, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _linha(Icons.person_outline, 'Barbeiro', (item['barbeiro'] ?? '').toString().toUpperCase()),
+          _linha(Icons.content_cut, 'Serviço', (item['servico'] ?? '').toString()),
+          _linha(Icons.payments_outlined, 'Valor', dinheiro(item['valor'])),
+          if (!fixo && status == 'Confirmado') ...[
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => remarcar(item),
+                    icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                    label: const Text('REMARCAR'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: corAzul,
+                      side: const BorderSide(color: corAzul),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => cancelar(item),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('CANCELAR'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _linha(IconData icone, String titulo, String valor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icone, size: 18, color: corTextoSecundario),
+          const SizedBox(width: 9),
+          Text('$titulo: ', style: const TextStyle(color: corTextoSecundario)),
+          Expanded(child: Text(valor, style: const TextStyle(fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================================================
+// CLIENTE - HISTÓRICO
+// ======================================================
+
+class ClienteHistoricoPage extends StatefulWidget {
+  const ClienteHistoricoPage({super.key});
+
+  @override
+  State<ClienteHistoricoPage> createState() => _ClienteHistoricoPageState();
+}
+
+class _ClienteHistoricoPageState extends State<ClienteHistoricoPage> {
+  List<dynamic> historico = [];
+  bool carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    carregar();
+  }
+
+  Future<void> carregar() async {
+    setState(() => carregando = true);
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/cliente/historico'),
+        headers: headersCliente(),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        setState(() => historico = dados is List ? dados : []);
+      } else {
+        dynamic dados = {};
+        try { dados = jsonDecode(resposta.body); } catch (_) {}
+        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível carregar o histórico.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  String dataTela(String data) {
+    if (data.length < 10) return data;
+    final p = data.split('-');
+    return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : data;
+  }
+
+  Future<void> avaliar(dynamic item) async {
+    int estrelas = 5;
+    final comentarioController = TextEditingController();
+    final dados = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: corCard,
+          title: const Text('Como foi seu atendimento?'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Avalie o atendimento de ${(item['barbeiro'] ?? '').toString().toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(color: corTextoSecundario)),
+            const SizedBox(height: 14),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (index) {
+              final n = index + 1;
+              return IconButton(onPressed: () => setDialogState(() => estrelas = n), iconSize: 36, icon: Icon(n <= estrelas ? Icons.star : Icons.star_border, color: corAzul));
+            })),
+            TextField(controller: comentarioController, maxLines: 3, maxLength: 500, decoration: const InputDecoration(labelText: 'Comentário (opcional)', hintText: 'Conte o que achou...')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCELAR')),
+            ElevatedButton(onPressed: () => Navigator.pop(dialogContext, {'estrelas': estrelas, 'comentario': comentarioController.text.trim()}), style: botaoPrincipal(), child: const Text('ENVIAR')),
+          ],
+        ),
+      ),
+    );
+    comentarioController.dispose();
+    if (dados == null || !mounted) return;
+    try {
+      final resposta = await http.post(Uri.parse('$api/cliente/avaliar'), headers: headersCliente(json: true), body: jsonEncode({'agendamento_id': numeroInt(item['id']), 'estrelas': dados['estrelas'], 'comentario': dados['comentario']}));
+      dynamic retorno = {};
+      try { retorno = jsonDecode(resposta.body); } catch (_) {}
+      if (!mounted) return;
+      if (resposta.statusCode == 200) { mostrarMensagem(context, 'Obrigado pela avaliação! ⭐'); await carregar(); }
+      else { mostrarMensagem(context, retorno['erro']?.toString() ?? 'Não foi possível enviar a avaliação.', erro: true); }
+    } catch (_) { if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Meu histórico'),
+        actions: [IconButton(onPressed: carregar, icon: const Icon(Icons.refresh))],
+      ),
+      body: carregando
+          ? const Center(child: CircularProgressIndicator(color: corAzul))
+          : historico.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(25),
+                    child: Text(
+                      'Nenhum atendimento no histórico ainda.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: corTextoSecundario, fontSize: 16),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: historico.length,
+                  itemBuilder: (context, index) {
+                    final item = historico[index];
+                    final status = (item['status'] ?? '').toString();
+                    final cor = status == 'Cancelado' ? Colors.redAccent : Colors.greenAccent;
+                    final valor = double.tryParse(item['valor'].toString()) ?? 0;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: corCard,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: const Color(0xFF303030)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 43,
+                            height: 43,
+                            decoration: BoxDecoration(
+                              color: cor.withOpacity(.10),
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Icon(
+                              status == 'Cancelado' ? Icons.event_busy_outlined : Icons.check_circle_outline,
+                              color: cor,
+                            ),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  dataTela((item['dia'] ?? '').toString()),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text('${item['horario'] ?? ''} • ${item['servico'] ?? ''}'),
+                                const SizedBox(height: 3),
+                                Text(
+                                  (item['barbeiro'] ?? '').toString().toUpperCase(),
+                                  style: const TextStyle(color: corTextoSecundario, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                                style: TextStyle(color: cor, fontWeight: FontWeight.bold),
+                              ),
+                              if (status == 'Finalizado' && numeroInt(item['avaliado']) != 1) ...[
+                                const SizedBox(height: 7),
+                                OutlinedButton.icon(
+                                  onPressed: () => avaliar(item),
+                                  icon: const Icon(Icons.star_outline, size: 16),
+                                  label: const Text('AVALIAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                  style: OutlinedButton.styleFrom(foregroundColor: corAzul, side: const BorderSide(color: corAzul), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+}
+
+// ======================================================
+// CLIENTE - PERFIL
+// ======================================================
+
+class ClientePerfilPage extends StatefulWidget {
+  const ClientePerfilPage({super.key});
+
+  @override
+  State<ClientePerfilPage> createState() => _ClientePerfilPageState();
+}
+
+class _ClientePerfilPageState extends State<ClientePerfilPage> {
+  late final TextEditingController nomeController;
+  late final TextEditingController numeroController;
+  late final TextEditingController emailController;
+  final senhaAtualController = TextEditingController();
+  final novaSenhaController = TextEditingController();
+  final confirmarSenhaController = TextEditingController();
+  bool salvando = false;
+  bool alterandoSenha = false;
+  bool mostrarSenha = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nomeController = TextEditingController(text: clienteNomeLogado);
+    numeroController = TextEditingController(text: clienteNumeroLogado);
+    emailController = TextEditingController(text: clienteEmailLogado);
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    numeroController.dispose();
+    emailController.dispose();
+    senhaAtualController.dispose();
+    novaSenhaController.dispose();
+    confirmarSenhaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> salvarPerfil() async {
+    final nome = nomeController.text.trim();
+    final numero = numeroController.text.trim();
+    final email = emailController.text.trim();
+    if (nome.isEmpty || email.isEmpty || !email.contains('@')) {
+      mostrarMensagem(context, 'Informe nome e e-mail válidos.', erro: true);
+      return;
+    }
+    setState(() => salvando = true);
+    try {
+      final resposta = await http.put(
+        Uri.parse('$api/cliente/me'),
+        headers: headersCliente(json: true),
+        body: jsonEncode({'nome': nome, 'numero': numero, 'email': email}),
+      );
+      dynamic dados = {};
+      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        clienteNomeLogado = nome;
+        clienteNumeroLogado = numero;
+        clienteEmailLogado = email;
+        mostrarMensagem(context, 'Perfil atualizado!');
+      } else {
+        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível atualizar o perfil.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  Future<void> alterarSenha() async {
+    final atual = senhaAtualController.text;
+    final nova = novaSenhaController.text;
+    final confirmar = confirmarSenhaController.text;
+    if (atual.isEmpty || nova.isEmpty || confirmar.isEmpty) {
+      mostrarMensagem(context, 'Preencha todos os campos da senha.', erro: true);
+      return;
+    }
+    if (nova.length < 6) {
+      mostrarMensagem(context, 'A nova senha precisa ter pelo menos 6 caracteres.', erro: true);
+      return;
+    }
+    if (nova != confirmar) {
+      mostrarMensagem(context, 'As novas senhas não coincidem.', erro: true);
+      return;
+    }
+    setState(() => alterandoSenha = true);
+    try {
+      final resposta = await http.put(
+        Uri.parse('$api/cliente/alterar-senha'),
+        headers: headersCliente(json: true),
+        body: jsonEncode({'senhaAtual': atual, 'novaSenha': nova, 'confirmarSenha': confirmar}),
+      );
+      dynamic dados = {};
+      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        senhaAtualController.clear();
+        novaSenhaController.clear();
+        confirmarSenhaController.clear();
+        mostrarMensagem(context, 'Senha alterada com sucesso!');
+      } else {
+        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível alterar a senha.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => alterandoSenha = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Meu perfil')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Center(
+            child: Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                color: corAzul.withOpacity(.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: corAzul.withOpacity(.35)),
+              ),
+              child: const Icon(Icons.person, color: corAzul, size: 42),
+            ),
+          ),
+          const SizedBox(height: 15),
+          const Center(
+            child: Text('Dados pessoais', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: nomeController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Nome', prefixIcon: Icon(Icons.person_outline)),
+          ),
+          const SizedBox(height: 13),
+          TextField(
+            controller: numeroController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Telefone', prefixIcon: Icon(Icons.phone_outlined)),
+          ),
+          const SizedBox(height: 13),
+          TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'E-mail', prefixIcon: Icon(Icons.email_outlined)),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 53,
+            child: ElevatedButton.icon(
+              onPressed: salvando ? null : salvarPerfil,
+              style: botaoPrincipal(),
+              icon: salvando
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                  : const Icon(Icons.save_outlined),
+              label: Text(salvando ? 'SALVANDO...' : 'SALVAR PERFIL', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 30),
+          const Divider(color: Color(0xFF333333)),
+          const SizedBox(height: 22),
+          const Text('Alterar senha', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 7),
+          const Text('Use sua senha atual para definir uma nova.', style: TextStyle(color: corTextoSecundario)),
+          const SizedBox(height: 17),
+          TextField(
+            controller: senhaAtualController,
+            obscureText: !mostrarSenha,
+            decoration: InputDecoration(
+              labelText: 'Senha atual',
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
+                icon: Icon(mostrarSenha ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+              ),
+            ),
+          ),
+          const SizedBox(height: 13),
+          TextField(
+            controller: novaSenhaController,
+            obscureText: !mostrarSenha,
+            decoration: const InputDecoration(labelText: 'Nova senha', prefixIcon: Icon(Icons.password_outlined)),
+          ),
+          const SizedBox(height: 13),
+          TextField(
+            controller: confirmarSenhaController,
+            obscureText: !mostrarSenha,
+            decoration: const InputDecoration(labelText: 'Confirmar nova senha', prefixIcon: Icon(Icons.password_outlined)),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 53,
+            child: OutlinedButton.icon(
+              onPressed: alterandoSenha ? null : alterarSenha,
+              icon: alterandoSenha
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: corAzul))
+                  : const Icon(Icons.lock_reset),
+              label: Text(alterandoSenha ? 'ALTERANDO...' : 'ALTERAR SENHA', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================================================
+// CLIENTE - REMARCAR
+// ======================================================
+
+class ClienteRemarcarPage extends StatefulWidget {
+  final dynamic agendamento;
+  final String nome;
+  final String numero;
+
+  const ClienteRemarcarPage({
+    super.key,
+    required this.agendamento,
+    required this.nome,
+    required this.numero,
+  });
+
+  @override
+  State<ClienteRemarcarPage> createState() => _ClienteRemarcarPageState();
+}
+
+class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
+  late String barbeiroSelecionado;
+  late String servicoSelecionado;
+  DateTime? dataSelecionada;
+  String? horarioSelecionado;
+  List<String> horariosLivres = [];
+  bool carregando = false;
+  bool salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    barbeiroSelecionado = (widget.agendamento['barbeiro'] ?? 'guel').toString().toLowerCase();
+    servicoSelecionado = (widget.agendamento['servico'] ?? 'Corte').toString();
+    final data = (widget.agendamento['dia'] ?? '').toString();
+    if (data.length >= 10) {
+      final p = data.substring(0, 10).split('-');
+      if (p.length == 3) {
+        dataSelecionada = DateTime.tryParse('${p[0]}-${p[1]}-${p[2]}');
+      }
+    }
+    carregarHorarios();
+  }
+
+  String formatarDataBackend(DateTime data) {
+    return '${data.year.toString().padLeft(4, '0')}-${data.month.toString().padLeft(2, '0')}-${data.day.toString().padLeft(2, '0')}';
+  }
+
+  String formatarDataTela(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year}';
+  }
+
+  bool trabalha(DateTime data) {
+    if (barbeiroSelecionado == 'gustavo') return data.weekday == DateTime.saturday;
+    return data.weekday >= DateTime.wednesday && data.weekday <= DateTime.saturday;
+  }
+
+  Future<void> escolherData() async {
+    final agora = DateTime.now();
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+    var inicial = dataSelecionada ?? hoje;
+    if (inicial.isBefore(hoje)) inicial = hoje;
+    while (!trabalha(inicial)) inicial = inicial.add(const Duration(days: 1));
+
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: hoje,
+      lastDate: DateTime(agora.year + 2),
+      selectableDayPredicate: trabalha,
+      helpText: 'Escolha a nova data',
+      cancelText: 'CANCELAR',
+      confirmText: 'SELECIONAR',
+    );
+    if (escolhida == null) return;
+    setState(() {
+      dataSelecionada = escolhida;
+      horarioSelecionado = null;
+      horariosLivres = [];
+    });
+    await carregarHorarios();
+  }
+
+  Future<void> carregarHorarios() async {
+    if (dataSelecionada == null) return;
+    setState(() {
+      carregando = true;
+      horarioSelecionado = null;
+    });
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/horarios-livres/${formatarDataBackend(dataSelecionada!)}/$barbeiroSelecionado'),
+      );
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        var lista = (dados as List).map((e) => e.toString()).toList();
+        final agora = DateTime.now();
+        final hoje = DateTime(agora.year, agora.month, agora.day);
+        final selecionada = DateTime(dataSelecionada!.year, dataSelecionada!.month, dataSelecionada!.day);
+        if (selecionada == hoje) {
+          final minutosAgora = agora.hour * 60 + agora.minute;
+          lista = lista.where((h) {
+            final p = h.split(':');
+            final minutos = (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+            return minutos > minutosAgora;
+          }).toList();
+        }
+        setState(() {
+          horariosLivres = lista;
+          horarioSelecionado = lista.isNotEmpty ? lista.first : null;
+        });
+      } else {
+        mostrarMensagem(context, 'Não foi possível carregar os horários.', erro: true);
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  double get valorServico => servicoSelecionado == 'Corte + Barba' ? 50 : 30;
+
+  Future<void> confirmar() async {
+    if (dataSelecionada == null || horarioSelecionado == null) {
+      mostrarMensagem(context, 'Escolha data e horário.', erro: true);
+      return;
+    }
+    setState(() => salvando = true);
+    try {
+      final resposta = await http.put(
+        Uri.parse('$api/cliente/agendamentos/${numeroInt(widget.agendamento['id'])}'),
+        headers: headersCliente(json: true),
+        body: jsonEncode({
+          'dia': formatarDataBackend(dataSelecionada!),
+          'horario': horarioSelecionado,
+          'barbeiro': barbeiroSelecionado,
+          'servico': servicoSelecionado,
+          'valor': valorServico,
+        }),
+      );
+      dynamic dados = {};
+      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 10), Text('Remarcado!')]),
+            content: Text('Seu novo horário:\n\n${formatarDataTela(dataSelecionada!)} às $horarioSelecionado\n${barbeiroSelecionado.toUpperCase()}\n$servicoSelecionado'),
+            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK'))],
+          ),
+        );
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível remarcar.', erro: true);
+        await carregarHorarios();
+      }
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Remarcar horário')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text('Escolha o novo horário', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 7),
+          const Text('O horário antigo só muda depois da confirmação.', style: TextStyle(color: corTextoSecundario)),
+          const SizedBox(height: 24),
+          const Text('Barbeiro', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _opcao('guel', 'Guel')),
+            const SizedBox(width: 10),
+            Expanded(child: _opcao('gustavo', 'Gustavo')),
+          ]),
+          const SizedBox(height: 23),
+          const Text('Serviço', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _servico('Corte', 30)),
+            const SizedBox(width: 10),
+            Expanded(child: _servico('Corte + Barba', 50)),
+          ]),
+          const SizedBox(height: 23),
+          const Text('Nova data', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: escolherData,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: corAzul)),
+              child: Row(children: [
+                const Icon(Icons.calendar_month, color: corAzul),
+                const SizedBox(width: 12),
+                Expanded(child: Text(dataSelecionada == null ? 'Selecionar data' : formatarDataTela(dataSelecionada!), style: const TextStyle(fontSize: 16))),
+                const Icon(Icons.chevron_right, color: corTextoSecundario),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 23),
+          const Text('Novo horário', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          if (carregando)
+            const Center(child: Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: corAzul)))
+          else if (dataSelecionada == null)
+            const Text('Escolha uma data.', style: TextStyle(color: corTextoSecundario))
+          else if (horariosLivres.isEmpty)
+            const Text('Não há horários livres nesta data.', style: TextStyle(color: corTextoSecundario))
+          else
+            Wrap(
+              spacing: 9,
+              runSpacing: 9,
+              children: horariosLivres.map((h) {
+                final selecionado = h == horarioSelecionado;
+                return ChoiceChip(
+                  label: Text(h, style: TextStyle(color: selecionado ? Colors.black : Colors.white, fontWeight: FontWeight.bold)),
+                  selected: selecionado,
+                  selectedColor: corAzul,
+                  backgroundColor: corCard,
+                  onSelected: (_) => setState(() => horarioSelecionado = h),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 55,
+            child: ElevatedButton.icon(
+              onPressed: salvando || horarioSelecionado == null ? null : confirmar,
+              style: botaoPrincipal(),
+              icon: salvando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) : const Icon(Icons.check),
+              label: Text(salvando ? 'SALVANDO...' : 'CONFIRMAR NOVO HORÁRIO', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _opcao(String valor, String nome) {
+    final selecionado = barbeiroSelecionado == valor;
+    return InkWell(
+      onTap: () async {
+        setState(() {
+          barbeiroSelecionado = valor;
+          dataSelecionada = null;
+          horariosLivres = [];
+          horarioSelecionado = null;
+        });
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 17),
+        decoration: BoxDecoration(
+          color: selecionado ? corAzul.withOpacity(.12) : corCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selecionado ? corAzul : const Color(0xFF333333)),
+        ),
+        child: Column(children: [Icon(selecionado ? Icons.check_circle : Icons.person, color: corAzul), const SizedBox(height: 6), Text(nome, style: const TextStyle(fontWeight: FontWeight.bold))]),
+      ),
+    );
+  }
+
+  Widget _servico(String nome, double valor) {
+    final selecionado = servicoSelecionado == nome;
+    return InkWell(
+      onTap: () => setState(() => servicoSelecionado = nome),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(color: selecionado ? corAzul.withOpacity(.12) : corCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: selecionado ? corAzul : const Color(0xFF333333))),
+        child: Column(children: [Icon(selecionado ? Icons.check_circle : Icons.content_cut, color: corAzul), const SizedBox(height: 6), Text(nome, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 3), Text('R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}', style: const TextStyle(color: corTextoSecundario))]),
+      ),
+    );
+  }
+}
+
+// ======================================================
+// AGENDAMENTO DO CLIENTE
+// ======================================================
+
+class ClienteAgendamentoPage extends StatefulWidget {
+  final String nome;
+  final String numero;
+
+  const ClienteAgendamentoPage({
+    super.key,
+    required this.nome,
+    required this.numero,
+  });
+
+  @override
+  State<ClienteAgendamentoPage> createState() => _ClienteAgendamentoPageState();
+}
+
+class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
+  DateTime? dataSelecionada;
+  String barbeiroSelecionado = 'guel';
+  String servicoSelecionado = 'Corte';
+  String? horarioSelecionado;
+  List<String> horariosLivres = [];
+  bool carregandoHorarios = false;
+  bool salvando = false;
+
+  double get valorServico =>
+      servicoSelecionado == 'Corte + Barba' ? 50 : 30;
+
+  String nomeBarbeiro(String barbeiro) {
+    return barbeiro == 'gustavo' ? 'Gustavo' : 'Guel';
+  }
+
+  bool barbeiroTrabalha(DateTime data) {
+    final dia = data.weekday;
+    if (barbeiroSelecionado == 'gustavo') {
+      return dia == DateTime.saturday;
+    }
+    if (barbeiroSelecionado == 'guel') {
+      return dia >= DateTime.wednesday && dia <= DateTime.saturday;
+    }
+    return false;
+  }
+
+  String formatarDataBackend(DateTime data) {
+    final ano = data.year.toString().padLeft(4, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final dia = data.day.toString().padLeft(2, '0');
+    return '$ano-$mes-$dia';
+  }
+
+  String formatarDataTela(DateTime data) {
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    return '$dia/$mes/${data.year}';
+  }
+
+  Future<void> escolherData() async {
+    final agora = DateTime.now();
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+
+    var inicial = hoje;
+    while (!barbeiroTrabalha(inicial)) {
+      inicial = inicial.add(const Duration(days: 1));
+    }
+
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: dataSelecionada ?? inicial,
+      firstDate: hoje,
+      lastDate: DateTime(agora.year + 2),
+      selectableDayPredicate: barbeiroTrabalha,
+      helpText: 'Escolha a data',
+      cancelText: 'CANCELAR',
+      confirmText: 'SELECIONAR',
+    );
+
+    if (escolhida == null) return;
+
+    setState(() {
+      dataSelecionada = escolhida;
+      horarioSelecionado = null;
+      horariosLivres = [];
+    });
+
+    await carregarHorarios();
+  }
+
+  Future<void> carregarHorarios() async {
+    if (dataSelecionada == null) return;
+
+    setState(() {
+      carregandoHorarios = true;
+      horarioSelecionado = null;
+    });
+
+    try {
+      final dia = formatarDataBackend(dataSelecionada!);
+      final resposta = await http.get(
+        Uri.parse('$api/horarios-livres/$dia/$barbeiroSelecionado'),
+      );
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        var lista = (dados as List).map((e) => e.toString()).toList();
+
+        // Se for hoje, não mostra horários que já passaram.
+        final agora = DateTime.now();
+        final hoje = DateTime(agora.year, agora.month, agora.day);
+        final selecionada = DateTime(
+          dataSelecionada!.year,
+          dataSelecionada!.month,
+          dataSelecionada!.day,
+        );
+
+        if (selecionada == hoje) {
+          final minutosAgora = agora.hour * 60 + agora.minute;
+          lista = lista.where((horario) {
+            final partes = horario.split(':');
+            if (partes.length != 2) return true;
+            final minutos =
+                (int.tryParse(partes[0]) ?? 0) * 60 +
+                (int.tryParse(partes[1]) ?? 0);
+            return minutos > minutosAgora;
+          }).toList();
+        }
+
+        setState(() {
+          horariosLivres = lista;
+          horarioSelecionado = lista.isEmpty ? null : lista.first;
+        });
+      } else {
+        dynamic dados = {};
+        try {
+          dados = jsonDecode(resposta.body);
+        } catch (_) {}
+
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível carregar os horários.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => carregandoHorarios = false);
+      }
+    }
+  }
+
+  Future<void> confirmarAgendamento() async {
+    if (dataSelecionada == null) {
+      mostrarMensagem(context, 'Escolha uma data.', erro: true);
+      return;
+    }
+
+    if (horarioSelecionado == null) {
+      mostrarMensagem(context, 'Escolha um horário disponível.', erro: true);
+      return;
+    }
+
+    setState(() => salvando = true);
+
+    try {
+      final resposta = await http.post(
+        Uri.parse('$api/cliente/agendar'),
+        headers: headersCliente(json: true),
+        body: jsonEncode({
+          'nome': widget.nome,
+          'numero': widget.numero,
+          'dia': formatarDataBackend(dataSelecionada!),
+          'horario': horarioSelecionado,
+          'barbeiro': barbeiroSelecionado,
+          'servico': servicoSelecionado,
+          'valor': valorServico,
+        }),
+      );
+
+      dynamic dados = {};
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 10),
+                  Text('Agendado!'),
+                ],
+              ),
+              content: Text(
+                '${servicoSelecionado}\n'
+                '${nomeBarbeiro(barbeiroSelecionado)}\n'
+                '${formatarDataTela(dataSelecionada!)} às $horarioSelecionado\n\n'
+                'Seu horário foi reservado com sucesso.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível criar o agendamento.',
+          erro: true,
+        );
+        await carregarHorarios();
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Agendar horário')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(child: logoGBarber(tamanho: 85, mostrarNome: false)),
+            const SizedBox(height: 10),
+            const Text(
+              'Escolha seu horário',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Olá, ${widget.nome}. Escolha barbeiro, serviço, data e horário.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: corTextoSecundario),
+            ),
+            const SizedBox(height: 25),
+
+            const Text(
+              '1. Escolha o barbeiro',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _opcaoBarbeiro(
+                    'guel',
+                    'Guel',
+                    Icons.person,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _opcaoBarbeiro(
+                    'gustavo',
+                    'Gustavo',
+                    Icons.person,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 25),
+            const Text(
+              '2. Escolha o serviço',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _opcaoServico('Corte', 30),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _opcaoServico('Corte + Barba', 50),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 25),
+            const Text(
+              '3. Escolha a data',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: escolherData,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(17),
+                decoration: BoxDecoration(
+                  color: corCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: dataSelecionada == null
+                        ? const Color(0xFF333333)
+                        : corAzul,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_month, color: corAzul),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        dataSelecionada == null
+                            ? 'Selecionar data'
+                            : formatarDataTela(dataSelecionada!),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: dataSelecionada == null
+                              ? corTextoSecundario
+                              : Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: corTextoSecundario,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+            const Text(
+              '4. Escolha o horário',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            if (carregandoHorarios)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 25),
+                child: Center(child: CircularProgressIndicator(color: corAzul)),
+              )
+            else if (dataSelecionada == null)
+              _avisoAgenda(
+                Icons.touch_app_outlined,
+                'Escolha uma data para ver os horários disponíveis.',
+              )
+            else if (horariosLivres.isEmpty)
+              _avisoAgenda(
+                Icons.event_busy_outlined,
+                'Não há horários disponíveis nesta data.',
+              )
+            else
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: horariosLivres.map((horario) {
+                  final selecionado = horarioSelecionado == horario;
+                  return ChoiceChip(
+                    label: Text(
+                      horario,
+                      style: TextStyle(
+                        color: selecionado ? Colors.black : Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    selected: selecionado,
+                    selectedColor: corAzul,
+                    backgroundColor: corCard,
+                    side: BorderSide(
+                      color: selecionado
+                          ? corAzul
+                          : const Color(0xFF333333),
+                    ),
+                    onSelected: (_) {
+                      setState(() => horarioSelecionado = horario);
+                    },
+                  );
+                }).toList(),
+              ),
+
+            const SizedBox(height: 25),
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                color: corCard,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: const Color(0xFF333333)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long_outlined, color: corAzul),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Valor do serviço',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Text(
+                    'R\$ ${valorServico.toStringAsFixed(2).replaceAll('.', ',')}',
+                    style: const TextStyle(
+                      color: corAzul,
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 22),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: salvando || horarioSelecionado == null
+                    ? null
+                    : confirmarAgendamento,
+                style: botaoPrincipal(),
+                icon: salvando
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: Text(
+                  salvando ? 'CONFIRMANDO...' : 'CONFIRMAR AGENDAMENTO',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              'O horário só será confirmado se ainda estiver disponível no servidor.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: corTextoSecundario,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _opcaoBarbeiro(String valor, String nome, IconData icone) {
+    final selecionado = barbeiroSelecionado == valor;
+    return InkWell(
+      onTap: () async {
+        setState(() {
+          barbeiroSelecionado = valor;
+          dataSelecionada = null;
+          horariosLivres = [];
+          horarioSelecionado = null;
+        });
+      },
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selecionado ? corAzul.withOpacity(.12) : corCard,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: selecionado ? corAzul : const Color(0xFF333333),
+            width: selecionado ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              selecionado ? Icons.check_circle : icone,
+              color: corAzul,
+              size: 28,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              nome,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _opcaoServico(String nome, double valor) {
+    final selecionado = servicoSelecionado == nome;
+    return InkWell(
+      onTap: () => setState(() => servicoSelecionado = nome),
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        decoration: BoxDecoration(
+          color: selecionado ? corAzul.withOpacity(.12) : corCard,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: selecionado ? corAzul : const Color(0xFF333333),
+            width: selecionado ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              selecionado ? Icons.check_circle : Icons.content_cut,
+              color: corAzul,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              nome,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
+              style: const TextStyle(color: corTextoSecundario),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avisoAgenda(IconData icone, String texto) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Row(
+        children: [
+          Icon(icone, color: corTextoSecundario),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              texto,
+              style: const TextStyle(color: corTextoSecundario),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class CadastroPage extends StatefulWidget {
   const CadastroPage({super.key});
@@ -1054,6 +3244,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
   List<dynamic> hoje = [];
   List<dynamic> semana = [];
+  List<dynamic> agendaSelecionada = [];
   List<dynamic> fixos = [];
   List<dynamic> bloqueios = [];
   List<dynamic> historico = [];
@@ -1122,6 +3313,28 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     super.dispose();
   }
 
+  Future<void> carregarAgendaSelecionada({bool exibirLoading = false}) async {
+    final dia = formatarDataBackend(dataAgendaSelecionada);
+
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/app/agendamentos-dia/${widget.barbeiro}/$dia'),
+        headers: headersAutenticados(),
+      );
+
+      if (!mounted) return;
+
+      if (resposta.statusCode == 200) {
+        final dados = jsonDecode(resposta.body);
+        setState(() {
+          agendaSelecionada = dados is List ? dados : [];
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar agenda do dia: $e');
+    }
+  }
+
   Future<void> carregarTudo({bool exibirLoading = true}) async {
     if (exibirLoading && mounted) {
       setState(() {
@@ -1137,6 +3350,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         ),
         http.get(
           Uri.parse('$api/app/agendamentos-semana/${widget.barbeiro}'),
+          headers: headersAutenticados(),
+        ),
+        http.get(
+          Uri.parse('$api/app/agendamentos-dia/${widget.barbeiro}/${formatarDataBackend(dataAgendaSelecionada)}'),
           headers: headersAutenticados(),
         ),
         http.get(
@@ -1176,7 +3393,12 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       }
 
       if (respostas[2].statusCode == 200) {
-        final resumo = jsonDecode(respostas[2].body);
+        final dadosAgenda = jsonDecode(respostas[2].body);
+        agendaSelecionada = dadosAgenda is List ? dadosAgenda : [];
+      }
+
+      if (respostas[3].statusCode == 200) {
+        final resumo = jsonDecode(respostas[3].body);
 
         total = numeroInt(resumo['total']);
         previsto = numeroDouble(resumo['previsto']);
@@ -1184,24 +3406,24 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         pendente = numeroDouble(resumo['pendente']);
       }
 
-      if (respostas[3].statusCode == 200) {
-        fixos = jsonDecode(respostas[3].body);
-      }
-
       if (respostas[4].statusCode == 200) {
-        bloqueios = jsonDecode(respostas[4].body);
+        fixos = jsonDecode(respostas[4].body);
       }
 
       if (respostas[5].statusCode == 200) {
-        historico = jsonDecode(respostas[5].body);
+        bloqueios = jsonDecode(respostas[5].body);
       }
 
       if (respostas[6].statusCode == 200) {
-        clientes = jsonDecode(respostas[6].body);
+        historico = jsonDecode(respostas[6].body);
       }
 
       if (respostas[7].statusCode == 200) {
-        final perfil = jsonDecode(respostas[7].body);
+        clientes = jsonDecode(respostas[7].body);
+      }
+
+      if (respostas[8].statusCode == 200) {
+        final perfil = jsonDecode(respostas[8].body);
 
         nomePainel = (perfil['nome'] ?? widget.nome).toString().trim();
 
@@ -2095,6 +4317,14 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
         ),
         const SizedBox(height: 8),
         _opcaoMais(
+          icone: Icons.star_outline,
+          titulo: 'Avaliações',
+          subtitulo: 'Veja as notas e comentários dos clientes',
+          aoClicar: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => AvaliacoesBarbeiroPage(barbeiro: widget.barbeiro, nomeBarbeiro: widget.nome)));
+          },
+        ),
+        _opcaoMais(
           icone: Icons.logout,
           titulo: 'Sair da conta',
           subtitulo: 'Voltar para a tela de login',
@@ -2398,10 +4628,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     final dataSelecionadaTexto =
         formatarDataBackend(dataSelecionada);
 
-    final agendamentosDoDia = semana.where((item) {
-      final dia = (item['dia'] ?? '').toString();
-      return dia == dataSelecionadaTexto;
-    }).toList();
+    final agendamentosDoDia = List<dynamic>.from(agendaSelecionada);
 
     agendamentosDoDia.sort((a, b) {
       return minutosDoHorario(
@@ -2545,10 +4772,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     borderRadius: BorderRadius.circular(14),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           dataAgendaSelecionada = dia;
                         });
+                        await carregarAgendaSelecionada();
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -2629,10 +4857,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   setState(() {
                     dataAgendaSelecionada = DateTime.now();
                   });
+                  await carregarAgendaSelecionada();
                 },
                 icon: const Icon(
                   Icons.today_outlined,
@@ -6784,6 +9013,48 @@ String nomeDiaSemana(int dia) {
 
     default:
       return 'Dia inválido';
+  }
+}
+
+class AvaliacoesBarbeiroPage extends StatefulWidget {
+  final String barbeiro;
+  final String nomeBarbeiro;
+  const AvaliacoesBarbeiroPage({super.key, required this.barbeiro, required this.nomeBarbeiro});
+  @override State<AvaliacoesBarbeiroPage> createState() => _AvaliacoesBarbeiroPageState();
+}
+
+class _AvaliacoesBarbeiroPageState extends State<AvaliacoesBarbeiroPage> {
+  bool carregando = true;
+  double media = 0;
+  int total = 0;
+  List<dynamic> avaliacoes = [];
+  @override void initState() { super.initState(); carregar(); }
+  Future<void> carregar() async {
+    setState(() => carregando = true);
+    try {
+      final resposta = await http.get(Uri.parse('$api/app/avaliacoes/${widget.barbeiro}'), headers: headersAutenticados());
+      if (!mounted) return;
+      if (resposta.statusCode == 200) {
+        final d = jsonDecode(resposta.body);
+        setState(() { media = double.tryParse(d['media']?.toString() ?? '') ?? 0; total = int.tryParse(d['total']?.toString() ?? '') ?? 0; avaliacoes = d['avaliacoes'] is List ? d['avaliacoes'] : []; });
+      } else { mostrarMensagem(context, 'Não foi possível carregar as avaliações.', erro: true); }
+    } catch (_) { if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true); }
+    finally { if (mounted) setState(() => carregando = false); }
+  }
+  @override Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Avaliações'), actions: [IconButton(onPressed: carregar, icon: const Icon(Icons.refresh))]),
+      body: RefreshIndicator(color: corAzul, onRefresh: carregar, child: ListView(padding: const EdgeInsets.all(16), children: [
+        Container(padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFF303030))), child: Column(children: [
+          Text(widget.nomeBarbeiro, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.star, color: corAzul, size: 34), const SizedBox(width: 8), Text(media.toStringAsFixed(1), style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900))]),
+          Text('$total avaliação${total == 1 ? '' : 'ões'}', style: const TextStyle(color: corTextoSecundario)),
+        ])), const SizedBox(height: 18),
+        if (carregando) const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: corAzul)))
+        else if (avaliacoes.isEmpty) const Padding(padding: EdgeInsets.all(35), child: Column(children: [Icon(Icons.star_border, size: 55, color: corTextoSecundario), SizedBox(height: 12), Text('Ainda não existem avaliações.', style: TextStyle(fontWeight: FontWeight.bold)), SizedBox(height: 5), Text('As avaliações dos clientes aparecerão aqui após os atendimentos.', textAlign: TextAlign.center, style: TextStyle(color: corTextoSecundario))]))
+        else ...avaliacoes.map((item) { final estrelas = int.tryParse(item['estrelas']?.toString() ?? '') ?? 0; final comentario = (item['comentario'] ?? '').toString().trim(); return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF303030))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text((item['cliente_nome'] ?? 'Cliente').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))), Row(children: List.generate(5, (i) => Icon(i < estrelas ? Icons.star : Icons.star_border, color: corAzul, size: 18)))]), const SizedBox(height: 7), Text('${item['servico'] ?? ''} • ${item['dia'] ?? ''} às ${item['horario'] ?? ''}', style: const TextStyle(color: corTextoSecundario, fontSize: 12)), if (comentario.isNotEmpty) ...[const SizedBox(height: 10), Text('“$comentario”', style: const TextStyle(fontSize: 14, height: 1.4))]])); }),
+      ])),
+    );
   }
 }
 

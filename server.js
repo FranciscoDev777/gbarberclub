@@ -63,6 +63,21 @@ function gerarTokenAcesso(barbeiro) {
   );
 }
 
+function gerarTokenCliente(cliente) {
+  return jwt.sign(
+    {
+      id: cliente.id,
+      email: String(cliente.email || "").trim().toLowerCase(),
+      nome: cliente.nome,
+      tipo: "cliente",
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "7d",
+    },
+  );
+}
+
 function rotaPublica(req) {
   const publicas = new Set([
     "/app/login",
@@ -143,6 +158,7 @@ function autenticarToken(req, res, next) {
         "historico",
         "perfil",
         "relatorios",
+        "avaliacoes",
       ].includes(partes[1])
     ) {
       const barbeiroRota = normalizarBarbeiro(partes[2]);
@@ -183,6 +199,37 @@ function autenticarToken(req, res, next) {
   }
 }
 
+
+function autenticarClienteToken(req, res, next) {
+  const autorizacao = String(req.headers.authorization || "").trim();
+
+  if (!autorizacao.startsWith("Bearer ")) {
+    return res.status(401).json({
+      erro: "Acesso não autorizado. Faça login novamente.",
+    });
+  }
+
+  const token = autorizacao.substring(7).trim();
+
+  try {
+    const dados = jwt.verify(token, JWT_SECRET);
+
+    if (dados.tipo !== "cliente" || !Number(dados.id)) {
+      return res.status(403).json({
+        erro: "Esta área é exclusiva para clientes.",
+      });
+    }
+
+    req.clienteAutenticadoId = Number(dados.id);
+    req.clienteAutenticadoEmail = String(dados.email || "").trim().toLowerCase();
+    next();
+  } catch (_) {
+    return res.status(401).json({
+      erro: "Sessão do cliente expirada. Faça login novamente.",
+    });
+  }
+}
+
 app.use(autenticarToken);
 
 // ======================================================
@@ -218,15 +265,57 @@ db.run(`
 `);
 
 db.all(`PRAGMA table_info(agendamentos)`, (erro, colunas) => {
-  if (erro) return;
+  if (erro) {
+    console.error("Erro ao verificar tabela agendamentos:", erro.message);
+    return;
+  }
 
   const temValor = colunas.some((coluna) => coluna.name === "valor");
+  const temClienteAppId = colunas.some((coluna) => coluna.name === "cliente_app_id");
+
+  const criarIndiceCliente = () => {
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_agendamentos_cliente_app
+      ON agendamentos(cliente_app_id, dia, horario)
+    `, (erroIndice) => {
+      if (erroIndice) {
+        console.error("Erro ao criar índice de clientes:", erroIndice.message);
+      }
+    });
+  };
+
+  const garantirClienteAppId = () => {
+    if (temClienteAppId) {
+      criarIndiceCliente();
+      return;
+    }
+
+    db.run(`
+      ALTER TABLE agendamentos
+      ADD COLUMN cliente_app_id INTEGER
+    `, (erroAlteracao) => {
+      if (erroAlteracao) {
+        console.error("Erro ao adicionar cliente_app_id:", erroAlteracao.message);
+        return;
+      }
+
+      console.log("Coluna cliente_app_id adicionada aos agendamentos.");
+      criarIndiceCliente();
+    });
+  };
 
   if (!temValor) {
     db.run(`
       ALTER TABLE agendamentos
       ADD COLUMN valor REAL DEFAULT 0
-    `);
+    `, (erroValor) => {
+      if (erroValor) {
+        console.error("Erro ao adicionar valor:", erroValor.message);
+      }
+      garantirClienteAppId();
+    });
+  } else {
+    garantirClienteAppId();
   }
 });
 
@@ -344,6 +433,57 @@ db.serialize(() => {
     CREATE INDEX IF NOT EXISTS idx_clientes_numero_busca
     ON clientes(barbeiro, numero_busca)
   `);
+});
+
+// ======================================================
+// CONTAS DE CLIENTES DO APLICATIVO
+// ======================================================
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS clientes_app (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    numero TEXT DEFAULT '',
+    email TEXT UNIQUE NOT NULL,
+    senha_hash TEXT NOT NULL,
+    senha_salt TEXT NOT NULL,
+    criado_em INTEGER NOT NULL,
+    atualizado_em INTEGER NOT NULL
+  )
+`);
+
+// ======================================================
+// AVALIAÇÕES DOS ATENDIMENTOS
+// ======================================================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS avaliacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agendamento_id INTEGER UNIQUE NOT NULL,
+      cliente_app_id INTEGER NOT NULL,
+      barbeiro TEXT NOT NULL,
+      estrelas INTEGER NOT NULL,
+      comentario TEXT DEFAULT '',
+      criado_em INTEGER NOT NULL,
+      FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
+      FOREIGN KEY (cliente_app_id) REFERENCES clientes_app(id)
+    )
+  `, (erro) => {
+    if (erro) {
+      console.error("Erro ao criar tabela avaliacoes:", erro.message);
+    } else {
+      console.log("Tabela avaliacoes pronta!");
+    }
+  });
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_avaliacoes_barbeiro
+    ON avaliacoes(barbeiro, criado_em)
+  `, (erro) => {
+    if (erro) {
+      console.error("Erro ao criar índice de avaliacoes:", erro.message);
+    }
+  });
 });
 
 // ======================================================
@@ -858,6 +998,556 @@ app.post("/app/login", (req, res) => {
 });
 
 // ======================================================
+// CLIENTE - CADASTRO
+// ======================================================
+
+app.post("/cliente/cadastro", (req, res) => {
+  let { nome, numero, email, senha } = req.body;
+
+  nome = String(nome || "").trim();
+  numero = String(numero || "").trim();
+  email = String(email || "").trim().toLowerCase();
+  senha = String(senha || "");
+
+  if (!nome || !email || !senha) {
+    return res.status(400).json({
+      erro: "Nome, e-mail e senha são obrigatórios.",
+    });
+  }
+
+  if (!email.includes("@") || email.length < 5) {
+    return res.status(400).json({
+      erro: "Digite um e-mail válido.",
+    });
+  }
+
+  if (senha.length < 6) {
+    return res.status(400).json({
+      erro: "A senha deve ter pelo menos 6 caracteres.",
+    });
+  }
+
+  const dadosSenha = gerarSenhaSegura(senha);
+
+  db.run(
+    `
+      INSERT INTO clientes_app
+      (nome, numero, email, senha_hash, senha_salt, criado_em, atualizado_em)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      nome,
+      numero,
+      email,
+      dadosSenha.hash,
+      dadosSenha.salt,
+      Date.now(),
+      Date.now(),
+    ],
+    function (erro) {
+      if (erro) {
+        if (String(erro.message || "").toLowerCase().includes("unique")) {
+          return res.status(409).json({
+            erro: "Já existe uma conta com este e-mail.",
+          });
+        }
+
+        console.error(erro);
+        return res.status(500).json({
+          erro: "Não foi possível realizar o cadastro.",
+        });
+      }
+
+      res.status(201).json({
+        sucesso: true,
+        mensagem: "Cadastro realizado com sucesso!",
+        cliente: {
+          id: this.lastID,
+          nome,
+          numero,
+          email,
+        },
+      });
+    },
+  );
+});
+
+// ======================================================
+// CLIENTE - LOGIN
+// ======================================================
+
+app.post("/cliente/login", (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const senha = String(req.body.senha || "");
+
+  if (!email || !senha) {
+    return res.status(400).json({
+      erro: "Informe e-mail e senha.",
+    });
+  }
+
+  db.get(
+    `SELECT * FROM clientes_app WHERE email = ?`,
+    [email],
+    (erro, cliente) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({
+          erro: "Erro no banco de dados.",
+        });
+      }
+
+      if (!cliente) {
+        return res.status(401).json({
+          erro: "E-mail ou senha incorretos.",
+        });
+      }
+
+      const senhaCorreta = verificarSenha(
+        senha,
+        cliente.senha_salt,
+        cliente.senha_hash,
+      );
+
+      if (!senhaCorreta) {
+        return res.status(401).json({
+          erro: "E-mail ou senha incorretos.",
+        });
+      }
+
+      const token = gerarTokenCliente(cliente);
+
+      res.json({
+        sucesso: true,
+        tipo: "cliente",
+        id: cliente.id,
+        nome: cliente.nome,
+        numero: cliente.numero,
+        email: cliente.email,
+        token,
+      });
+    },
+  );
+});
+
+
+// ======================================================
+// CLIENTE - MEUS DADOS
+// ======================================================
+
+app.get("/cliente/me", autenticarClienteToken, (req, res) => {
+  db.get(
+    `SELECT id, nome, numero, email, criado_em, atualizado_em FROM clientes_app WHERE id = ?`,
+    [req.clienteAutenticadoId],
+    (erro, cliente) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar perfil." });
+      }
+      if (!cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+      res.json(cliente);
+    },
+  );
+});
+
+app.put("/cliente/me", autenticarClienteToken, (req, res) => {
+  const nome = String(req.body.nome || "").trim();
+  const numero = String(req.body.numero || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+
+  if (!nome || !email || !email.includes("@")) {
+    return res.status(400).json({ erro: "Nome e e-mail válidos são obrigatórios." });
+  }
+
+  db.run(
+    `UPDATE clientes_app SET nome = ?, numero = ?, email = ?, atualizado_em = ? WHERE id = ?`,
+    [nome, numero, email, Date.now(), req.clienteAutenticadoId],
+    function (erro) {
+      if (erro) {
+        if (String(erro.message || "").toLowerCase().includes("unique")) {
+          return res.status(409).json({ erro: "Este e-mail já está em uso." });
+        }
+        console.error(erro);
+        return res.status(500).json({ erro: "Não foi possível atualizar o perfil." });
+      }
+      res.json({ sucesso: true, mensagem: "Perfil atualizado com sucesso!" });
+    },
+  );
+});
+
+app.put("/cliente/alterar-senha", autenticarClienteToken, (req, res) => {
+  const senhaAtual = String(req.body.senhaAtual || "");
+  const novaSenha = String(req.body.novaSenha || "");
+  const confirmarSenha = String(req.body.confirmarSenha || "");
+
+  if (!senhaAtual || !novaSenha || !confirmarSenha) {
+    return res.status(400).json({ erro: "Preencha todos os campos." });
+  }
+  if (novaSenha.length < 6) {
+    return res.status(400).json({ erro: "A nova senha precisa ter pelo menos 6 caracteres." });
+  }
+  if (novaSenha !== confirmarSenha) {
+    return res.status(400).json({ erro: "As novas senhas não coincidem." });
+  }
+
+  db.get(
+    `SELECT * FROM clientes_app WHERE id = ?`,
+    [req.clienteAutenticadoId],
+    (erro, cliente) => {
+      if (erro || !cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+      if (!verificarSenha(senhaAtual, cliente.senha_salt, cliente.senha_hash)) {
+        return res.status(400).json({ erro: "Senha atual incorreta." });
+      }
+      const dadosSenha = gerarSenhaSegura(novaSenha);
+      db.run(
+        `UPDATE clientes_app SET senha_hash = ?, senha_salt = ?, atualizado_em = ? WHERE id = ?`,
+        [dadosSenha.hash, dadosSenha.salt, Date.now(), req.clienteAutenticadoId],
+        (erroUpdate) => {
+          if (erroUpdate) {
+            console.error(erroUpdate);
+            return res.status(500).json({ erro: "Não foi possível alterar a senha." });
+          }
+          res.json({ sucesso: true, mensagem: "Senha alterada com sucesso!" });
+        },
+      );
+    },
+  );
+});
+
+// ======================================================
+// CLIENTE - MEUS AGENDAMENTOS
+// ======================================================
+
+app.get("/cliente/agendamentos", autenticarClienteToken, (req, res) => {
+  db.get(
+    `SELECT numero FROM clientes_app WHERE id = ?`,
+    [req.clienteAutenticadoId],
+    (erroCliente, cliente) => {
+      if (erroCliente || !cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+
+      const numero = String(cliente.numero || "").trim();
+
+      db.all(
+        `SELECT * FROM agendamentos
+         WHERE fixo = 0
+           AND (cliente_app_id = ? OR (cliente_app_id IS NULL AND numero = ?))
+         ORDER BY dia, horario`,
+        [req.clienteAutenticadoId, numero],
+        (erro, registros) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar seus agendamentos." });
+      }
+          res.json(registros);
+        },
+      );
+    },
+  );
+});
+
+app.get("/cliente/historico", autenticarClienteToken, (req, res) => {
+  const hoje = dataHoje();
+  db.get(
+    `SELECT numero FROM clientes_app WHERE id = ?`,
+    [req.clienteAutenticadoId],
+    (erroCliente, cliente) => {
+      if (erroCliente || !cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+
+      const numero = String(cliente.numero || "").trim();
+
+      db.all(
+        `SELECT a.*, CASE WHEN av.id IS NULL THEN 0 ELSE 1 END AS avaliado
+         FROM agendamentos a
+         LEFT JOIN avaliacoes av ON av.agendamento_id = a.id
+         WHERE a.fixo = 0
+           AND (a.cliente_app_id = ? OR (a.cliente_app_id IS NULL AND a.numero = ?))
+           AND (a.dia < ? OR a.status IN ('Finalizado', 'Cancelado'))
+         ORDER BY a.dia DESC, a.horario DESC`,
+        [req.clienteAutenticadoId, numero, hoje],
+        (erro, registros) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar histórico." });
+      }
+          res.json(registros);
+        },
+      );
+    },
+  );
+});
+
+app.delete("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ erro: "Agendamento inválido." });
+
+  db.run(
+    `UPDATE agendamentos
+     SET status = 'Cancelado'
+     WHERE id = ? AND cliente_app_id = ? AND fixo = 0 AND status != 'Cancelado'`,
+    [id, req.clienteAutenticadoId],
+    function (erro) {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Não foi possível cancelar o agendamento." });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ erro: "Agendamento não encontrado ou já cancelado." });
+      }
+      res.json({ sucesso: true, mensagem: "Agendamento cancelado com sucesso!" });
+    },
+  );
+});
+
+app.put("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
+  const id = Number(req.params.id);
+  let { dia, horario, barbeiro, servico, valor } = req.body;
+  dia = String(dia || "").trim();
+  horario = String(horario || "").trim();
+  barbeiro = normalizarBarbeiro(barbeiro);
+  servico = String(servico || "").trim();
+  valor = Number(valor) || 0;
+
+  if (!id || !dia || !horario || !barbeiro) {
+    return res.status(400).json({ erro: "Preencha os dados do novo horário." });
+  }
+  if (!horariosBase.includes(horario)) {
+    return res.status(400).json({ erro: "Horário inválido." });
+  }
+
+  const dataObjeto = criarDataLocal(dia);
+  const diaSemana = dataObjeto.getDay();
+  if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
+    return res.status(400).json({ erro: "Esse barbeiro não trabalha neste dia." });
+  }
+
+  db.get(
+    `SELECT * FROM bloqueios WHERE barbeiro = ? AND dia = ? AND (dia_inteiro = 1 OR horario = ?) LIMIT 1`,
+    [barbeiro, dia, horario],
+    (erroBloqueio, bloqueio) => {
+      if (erroBloqueio) return res.status(500).json({ erro: "Erro ao verificar bloqueio." });
+      if (bloqueio) return res.status(400).json({ erro: "Esse horário está bloqueado pelo barbeiro." });
+
+      db.get(
+        `SELECT * FROM agendamentos
+         WHERE barbeiro = ? AND horario = ? AND status != 'Cancelado'
+           AND id != ?
+           AND ((fixo = 0 AND dia = ?) OR (fixo = 1 AND dia_semana = ?))
+         LIMIT 1`,
+        [barbeiro, horario, id, dia, diaSemana],
+        (erroOcupado, ocupado) => {
+          if (erroOcupado) return res.status(500).json({ erro: "Erro ao verificar horário." });
+          if (ocupado) return res.status(400).json({ erro: "Esse horário já está ocupado." });
+
+          db.run(
+            `UPDATE agendamentos
+             SET dia = ?, horario = ?, barbeiro = ?, servico = ?, valor = ?, dia_semana = ?, status = 'Confirmado'
+             WHERE id = ? AND cliente_app_id = ? AND fixo = 0 AND status != 'Cancelado'`,
+            [dia, horario, barbeiro, servico, valor, diaSemana, id, req.clienteAutenticadoId],
+            function (erroUpdate) {
+              if (erroUpdate) {
+                console.error(erroUpdate);
+                return res.status(500).json({ erro: "Não foi possível remarcar o agendamento." });
+              }
+              if (this.changes === 0) {
+                return res.status(404).json({ erro: "Agendamento não encontrado." });
+              }
+              res.json({ sucesso: true, mensagem: "Agendamento remarcado com sucesso!" });
+            },
+          );
+        },
+      );
+    },
+  );
+});
+
+// ======================================================
+// CLIENTE - AVALIAÇÕES PENDENTES
+// ======================================================
+app.get("/cliente/avaliacoes-pendentes", autenticarClienteToken, (req, res) => {
+  db.all(`
+    SELECT a.*
+    FROM agendamentos a
+    LEFT JOIN avaliacoes av ON av.agendamento_id = a.id
+    WHERE a.fixo = 0
+      AND a.cliente_app_id = ?
+      AND a.status = 'Finalizado'
+      AND av.id IS NULL
+    ORDER BY a.dia DESC, a.horario DESC
+  `, [req.clienteAutenticadoId], (erro, registros) => {
+    if (erro) {
+      console.error(erro);
+      return res.status(500).json({ erro: "Erro ao carregar avaliações pendentes." });
+    }
+    res.json(registros);
+  });
+});
+
+// ======================================================
+// CLIENTE - ENVIAR AVALIAÇÃO
+// ======================================================
+app.post("/cliente/avaliar", autenticarClienteToken, (req, res) => {
+  const agendamentoId = Number(req.body.agendamento_id);
+  const estrelas = Number(req.body.estrelas);
+  const comentario = String(req.body.comentario || "").trim().slice(0, 500);
+
+  if (!agendamentoId || !Number.isInteger(estrelas) || estrelas < 1 || estrelas > 5) {
+    return res.status(400).json({ erro: "Escolha uma avaliação de 1 a 5 estrelas." });
+  }
+
+  db.get(`
+    SELECT * FROM agendamentos
+    WHERE id = ? AND cliente_app_id = ? AND fixo = 0 AND status = 'Finalizado'
+  `, [agendamentoId, req.clienteAutenticadoId], (erro, agendamento) => {
+    if (erro) return res.status(500).json({ erro: "Erro ao verificar atendimento." });
+    if (!agendamento) return res.status(404).json({ erro: "Atendimento finalizado não encontrado." });
+
+    db.run(`
+      INSERT INTO avaliacoes
+      (agendamento_id, cliente_app_id, barbeiro, estrelas, comentario, criado_em)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [agendamentoId, req.clienteAutenticadoId, agendamento.barbeiro, estrelas, comentario, Date.now()], function (erroInsert) {
+      if (erroInsert) {
+        if (String(erroInsert.message).includes("UNIQUE")) {
+          return res.status(409).json({ erro: "Esse atendimento já foi avaliado." });
+        }
+        console.error(erroInsert);
+        return res.status(500).json({ erro: "Não foi possível salvar a avaliação." });
+      }
+      res.json({ sucesso: true, mensagem: "Avaliação enviada com sucesso!" });
+    });
+  });
+});
+
+// ======================================================
+// BARBEIRO - AVALIAÇÕES
+// ======================================================
+app.get("/app/avaliacoes/:barbeiro", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  db.all(`
+    SELECT av.id, av.agendamento_id, av.estrelas, av.comentario, av.criado_em,
+           c.nome AS cliente_nome, a.servico, a.dia, a.horario
+    FROM avaliacoes av
+    LEFT JOIN clientes_app c ON c.id = av.cliente_app_id
+    LEFT JOIN agendamentos a ON a.id = av.agendamento_id
+    WHERE av.barbeiro = ?
+    ORDER BY av.criado_em DESC
+    LIMIT 100
+  `, [barbeiro], (erro, registros) => {
+    if (erro) {
+      console.error(erro);
+      return res.status(500).json({ erro: "Erro ao carregar avaliações." });
+    }
+    const total = registros.length;
+    const soma = registros.reduce((acc, item) => acc + Number(item.estrelas || 0), 0);
+    res.json({ media: total ? Number((soma / total).toFixed(1)) : 0, total, avaliacoes: registros });
+  });
+});
+
+// ======================================================
+// CLIENTE - CRIAR AGENDAMENTO
+// ======================================================
+
+app.post("/cliente/agendar", autenticarClienteToken, (req, res) => {
+  const clienteId = req.clienteAutenticadoId;
+
+  db.get(
+    `SELECT id, nome, numero, email FROM clientes_app WHERE id = ?`,
+    [clienteId],
+    (erroCliente, cliente) => {
+      if (erroCliente || !cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
+
+      let { dia, horario, barbeiro, servico, valor } = req.body;
+      const nome = cliente.nome;
+      const numero = cliente.numero || "";
+      dia = String(dia || "").trim();
+      horario = String(horario || "").trim();
+      barbeiro = normalizarBarbeiro(barbeiro);
+      servico = String(servico || "").trim();
+      valor = Number(valor) || 0;
+
+      if (!dia || !horario || !barbeiro) {
+        return res.status(400).json({ erro: "Preencha os dados obrigatórios." });
+      }
+      if (!horariosBase.includes(horario)) {
+        return res.status(400).json({ erro: "Horário inválido." });
+      }
+
+      const dataObjeto = criarDataLocal(dia);
+      const diaSemana = dataObjeto.getDay();
+      if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
+        return res.status(400).json({ erro: "Esse barbeiro não trabalha neste dia." });
+      }
+
+      db.get(
+        `SELECT * FROM bloqueios WHERE barbeiro = ? AND dia = ? AND (dia_inteiro = 1 OR horario = ?) LIMIT 1`,
+        [barbeiro, dia, horario],
+        (erroBloqueio, bloqueio) => {
+          if (erroBloqueio) return res.status(500).json({ erro: "Erro ao verificar bloqueio." });
+          if (bloqueio) return res.status(400).json({ erro: "Esse horário está bloqueado pelo barbeiro." });
+
+          db.get(
+            `SELECT * FROM agendamentos
+             WHERE barbeiro = ? AND horario = ? AND status != 'Cancelado'
+               AND ((fixo = 0 AND dia = ?) OR (fixo = 1 AND dia_semana = ?))
+             LIMIT 1`,
+            [barbeiro, horario, dia, diaSemana],
+            (erroOcupado, ocupado) => {
+              if (erroOcupado) return res.status(500).json({ erro: "Erro ao verificar horário." });
+              if (ocupado) return res.status(400).json({ erro: "Esse horário já está ocupado." });
+
+              db.run(
+                `INSERT INTO agendamentos
+                 (nome, numero, dia, horario, barbeiro, servico, valor, status, fixo, dia_semana, cliente_app_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?, ?)`,
+                [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana, clienteId],
+                function (erroInsert) {
+                  if (erroInsert) {
+                    console.error(erroInsert);
+                    return res.status(500).json({ erro: "Erro ao criar agendamento." });
+                  }
+
+                  const agendamentoId = this.lastID;
+                  res.json({
+                    sucesso: true,
+                    id: agendamentoId,
+                    mensagem: "Agendamento realizado com sucesso!",
+                  });
+
+                  salvarClienteAutomaticamente({ nome, numero, barbeiro }).catch((erro) => {
+                    console.error("Erro ao salvar cliente automaticamente:", erro);
+                  });
+
+                  enviarNotificacaoNovoAgendamento({
+                    id: agendamentoId,
+                    barbeiro,
+                    nome,
+                    dia,
+                    horario,
+                    servico,
+                  }).catch((erro) => {
+                    console.error("Erro ao enviar notificação push:", erro);
+                  });
+                },
+              );
+            },
+          );
+        },
+      );
+    },
+  );
+});
+
+// ======================================================
 // REGISTRAR TOKEN DE NOTIFICAÇÃO DO BARBEIRO
 // ======================================================
 
@@ -1304,6 +1994,17 @@ app.get("/horarios-livres/:data/:barbeiro", (req, res) => {
 app.post("/agendar", (req, res) => {
   let { nome, numero, dia, horario, barbeiro, servico, valor } = req.body;
 
+  let clienteAppId = null;
+  const autorizacaoCliente = String(req.headers.authorization || "").trim();
+  if (autorizacaoCliente.startsWith("Bearer ")) {
+    try {
+      const dadosToken = jwt.verify(autorizacaoCliente.substring(7).trim(), JWT_SECRET);
+      if (dadosToken.tipo === "cliente" && Number(dadosToken.id)) {
+        clienteAppId = Number(dadosToken.id);
+      }
+    } catch (_) {}
+  }
+
   nome = String(nome || "").trim();
   numero = String(numero || "").trim();
   dia = String(dia || "").trim();
@@ -1404,11 +2105,12 @@ app.post("/agendar", (req, res) => {
                 valor,
                 status,
                 fixo,
-                dia_semana
+                dia_semana,
+                cliente_app_id
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?, ?)
             `,
-            [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana],
+            [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana, clienteAppId],
             function (erroInsert) {
               if (erroInsert) {
                 console.error(erroInsert);
