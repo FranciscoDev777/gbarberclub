@@ -152,6 +152,7 @@ function autenticarToken(req, res, next) {
       [
         "agendamentos-hoje",
         "agendamentos-semana",
+        "agendamentos-dia",
         "resumo-hoje",
         "fixos",
         "bloqueios",
@@ -3207,6 +3208,77 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
 
         return String(a.horario).localeCompare(String(b.horario));
       });
+
+      res.json(resultado);
+    },
+  );
+});
+
+// ======================================================
+// AGENDAMENTOS DE UM DIA ESPECÍFICO
+// ======================================================
+
+app.get("/app/agendamentos-dia/:barbeiro/:dia", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  const dia = String(req.params.dia || "").trim();
+
+  if (!barbeiro || !dia) {
+    return res.status(400).json({
+      erro: "Barbeiro ou data inválidos.",
+    });
+  }
+
+  // Valida o formato YYYY-MM-DD sem deixar o JavaScript
+  // interpretar a data em UTC e mudar o dia.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+    return res.status(400).json({
+      erro: "Data inválida. Use o formato YYYY-MM-DD.",
+    });
+  }
+
+  const dataObjeto = criarDataLocal(dia);
+
+  if (Number.isNaN(dataObjeto.getTime())) {
+    return res.status(400).json({
+      erro: "Data inválida.",
+    });
+  }
+
+  const diaSemana = dataObjeto.getDay();
+
+  if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
+    return res.json([]);
+  }
+
+  db.all(
+    `
+      SELECT *
+      FROM agendamentos
+      WHERE barbeiro = ?
+        AND status != 'Cancelado'
+        AND (
+          (fixo = 0 AND dia = ?)
+          OR
+          (fixo = 1 AND dia_semana = ?)
+        )
+      ORDER BY horario
+    `,
+    [barbeiro, dia, diaSemana],
+    (erro, registros) => {
+      if (erro) {
+        console.error("Erro ao carregar agendamentos do dia:", erro.message);
+
+        return res.status(500).json({
+          erro: "Erro ao carregar agendamentos do dia.",
+        });
+      }
+
+      // Para horários fixos, o app precisa receber a data que está sendo
+      // visualizada, e não a data original em que o fixo foi cadastrado.
+      const resultado = registros.map((item) => ({
+        ...item,
+        dia: Number(item.fixo) === 1 ? dia : item.dia,
+      }));
 
       res.json(resultado);
     },

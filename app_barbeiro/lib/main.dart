@@ -477,18 +477,25 @@ class _LoginPageState extends State<LoginPage> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ClienteLoginPage()),
+                          MaterialPageRoute(
+                            builder: (_) => const ClienteLoginPage(),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.person_outline, size: 22),
                       label: const Text(
                         'SOU UM CLIENTE',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: corAzul,
                         side: const BorderSide(color: corAzul, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
@@ -511,7 +518,6 @@ class _LoginPageState extends State<LoginPage> {
 // ======================================================
 // CADASTRO
 // ======================================================
-
 
 class ClienteLoginPage extends StatefulWidget {
   const ClienteLoginPage({super.key});
@@ -574,7 +580,11 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
       }
     } catch (_) {
       if (!mounted) return;
-      mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      mostrarMensagem(
+        context,
+        'Não foi possível conectar ao servidor.',
+        erro: true,
+      );
     } finally {
       if (mounted) setState(() => carregando = false);
     }
@@ -629,7 +639,8 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
                       labelText: 'Senha',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
+                        onPressed: () =>
+                            setState(() => mostrarSenha = !mostrarSenha),
                         icon: Icon(
                           mostrarSenha
                               ? Icons.visibility_off_outlined
@@ -656,7 +667,10 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
                             )
                           : const Text(
                               'ENTRAR',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                     ),
                   ),
@@ -665,7 +679,9 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const ClienteCadastroPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const ClienteCadastroPage(),
+                        ),
                       );
                     },
                     child: const Text(
@@ -687,12 +703,17 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
                       icon: const Icon(Icons.content_cut, size: 22),
                       label: const Text(
                         'SOU UM BARBEIRO',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: corAzul,
                         side: const BorderSide(color: corAzul, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
@@ -746,7 +767,11 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
     }
 
     if (senha.length < 6) {
-      mostrarMensagem(context, 'A senha deve ter pelo menos 6 caracteres.', erro: true);
+      mostrarMensagem(
+        context,
+        'A senha deve ter pelo menos 6 caracteres.',
+        erro: true,
+      );
       return;
     }
 
@@ -785,7 +810,11 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
       }
     } catch (_) {
       if (!mounted) return;
-      mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      mostrarMensagem(
+        context,
+        'Não foi possível conectar ao servidor.',
+        erro: true,
+      );
     } finally {
       if (mounted) setState(() => carregando = false);
     }
@@ -817,7 +846,10 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Crie sua conta',
-                      style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 7),
@@ -862,7 +894,8 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
                       labelText: 'Senha *',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
+                        onPressed: () =>
+                            setState(() => mostrarSenha = !mostrarSenha),
                         icon: Icon(
                           mostrarSenha
                               ? Icons.visibility_off_outlined
@@ -899,7 +932,10 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
                             )
                           : const Text(
                               'CRIAR CONTA',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                     ),
                   ),
@@ -926,10 +962,7 @@ class ClienteInicioPage extends StatelessWidget {
   });
 
   Future<void> abrirPagina(BuildContext context, Widget page) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => page),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -980,7 +1013,11 @@ class ClienteInicioPage extends StatelessWidget {
                           color: corAzul.withOpacity(.12),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.person, size: 31, color: corAzul),
+                        child: const Icon(
+                          Icons.person,
+                          size: 31,
+                          color: corAzul,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1019,7 +1056,10 @@ class ClienteInicioPage extends StatelessWidget {
                       icon: const Icon(Icons.calendar_month),
                       label: const Text(
                         'AGENDAR HORÁRIO',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -1092,7 +1132,10 @@ class ClienteInicioPage extends StatelessWidget {
           backgroundColor: corAzul.withOpacity(.12),
           child: Icon(icone, color: corAzul),
         ),
-        title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Text(subtitulo),
@@ -1112,7 +1155,8 @@ class ClienteAgendamentosPage extends StatefulWidget {
   const ClienteAgendamentosPage({super.key});
 
   @override
-  State<ClienteAgendamentosPage> createState() => _ClienteAgendamentosPageState();
+  State<ClienteAgendamentosPage> createState() =>
+      _ClienteAgendamentosPageState();
 }
 
 class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
@@ -1156,15 +1200,23 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
         setState(() => agendamentos = dados is List ? dados : []);
       } else {
         dynamic dados = {};
-        try { dados = jsonDecode(resposta.body); } catch (_) {}
+        try {
+          dados = jsonDecode(resposta.body);
+        } catch (_) {}
         mostrarMensagem(
           context,
-          dados['erro']?.toString() ?? 'Não foi possível carregar seus agendamentos.',
+          dados['erro']?.toString() ??
+              'Não foi possível carregar seus agendamentos.',
           erro: true,
         );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => carregando = false);
     }
@@ -1184,7 +1236,10 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('CANCELAR'),
           ),
         ],
@@ -1199,15 +1254,26 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
       );
       if (!mounted) return;
       dynamic dados = {};
-      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
       if (resposta.statusCode == 200) {
         mostrarMensagem(context, 'Agendamento cancelado.');
         await carregar();
       } else {
-        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível cancelar.', erro: true);
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível cancelar.',
+          erro: true,
+        );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     }
   }
 
@@ -1246,43 +1312,47 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
                 ],
               )
             : agendamentos.isEmpty
-                ? ListView(
-                    padding: const EdgeInsets.all(22),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 80),
-                      Icon(Icons.event_available_outlined, size: 65, color: corTextoSecundario),
-                      const SizedBox(height: 15),
-                      const Text(
-                        'Você ainda não tem agendamentos.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Toque em AGENDAR HORÁRIO na tela anterior para marcar seu atendimento.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: corTextoSecundario),
-                      ),
-                    ],
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const Text(
-                        'Seus horários',
-                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'Aqui aparecem os horários marcados pela sua conta.',
-                        style: TextStyle(color: corTextoSecundario),
-                      ),
-                      const SizedBox(height: 16),
-                      ...agendamentos.map((item) => _card(item)),
-                    ],
+            ? ListView(
+                padding: const EdgeInsets.all(22),
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 80),
+                  Icon(
+                    Icons.event_available_outlined,
+                    size: 65,
+                    color: corTextoSecundario,
                   ),
+                  const SizedBox(height: 15),
+                  const Text(
+                    'Você ainda não tem agendamentos.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Toque em AGENDAR HORÁRIO na tela anterior para marcar seu atendimento.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: corTextoSecundario),
+                  ),
+                ],
+              )
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const Text(
+                    'Seus horários',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Aqui aparecem os horários marcados pela sua conta.',
+                    style: TextStyle(color: corTextoSecundario),
+                  ),
+                  const SizedBox(height: 16),
+                  ...agendamentos.map((item) => _card(item)),
+                ],
+              ),
       ),
     );
   }
@@ -1306,21 +1376,31 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: cor.withOpacity(.10),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   (item['horario'] ?? '').toString(),
-                  style: TextStyle(color: cor, fontWeight: FontWeight.w800, fontSize: 17),
+                  style: TextStyle(
+                    color: cor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   dataTela((item['dia'] ?? '').toString()),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               Container(
@@ -1331,14 +1411,26 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
                 ),
                 child: Text(
                   status.toUpperCase(),
-                  style: TextStyle(color: cor, fontSize: 9, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: cor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          _linha(Icons.person_outline, 'Barbeiro', (item['barbeiro'] ?? '').toString().toUpperCase()),
-          _linha(Icons.content_cut, 'Serviço', (item['servico'] ?? '').toString()),
+          _linha(
+            Icons.person_outline,
+            'Barbeiro',
+            (item['barbeiro'] ?? '').toString().toUpperCase(),
+          ),
+          _linha(
+            Icons.content_cut,
+            'Serviço',
+            (item['servico'] ?? '').toString(),
+          ),
           _linha(Icons.payments_outlined, 'Valor', dinheiro(item['valor'])),
           if (!fixo && status == 'Confirmado') ...[
             const SizedBox(height: 13),
@@ -1383,9 +1475,135 @@ class _ClienteAgendamentosPageState extends State<ClienteAgendamentosPage> {
           Icon(icone, size: 18, color: corTextoSecundario),
           const SizedBox(width: 9),
           Text('$titulo: ', style: const TextStyle(color: corTextoSecundario)),
-          Expanded(child: Text(valor, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              valor,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+// ======================================================
+// CLIENTE - AVALIAÇÃO
+// ======================================================
+
+class _AvaliacaoDialog extends StatefulWidget {
+  final String barbeiro;
+
+  const _AvaliacaoDialog({required this.barbeiro});
+
+  @override
+  State<_AvaliacaoDialog> createState() => _AvaliacaoDialogState();
+}
+
+class _AvaliacaoDialogState extends State<_AvaliacaoDialog> {
+  final TextEditingController comentarioController = TextEditingController();
+  int estrelas = 5;
+
+  @override
+  void dispose() {
+    comentarioController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nome = widget.barbeiro.trim().isEmpty
+        ? 'BARBEIRO'
+        : widget.barbeiro.trim().toUpperCase();
+
+    return AlertDialog(
+      backgroundColor: corCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+      title: const Text(
+        'Avalie seu atendimento',
+        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Como foi seu atendimento com $nome?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: corTextoSecundario, fontSize: 14),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final numero = index + 1;
+                return IconButton(
+                  tooltip: '$numero estrela${numero == 1 ? '' : 's'}',
+                  onPressed: () {
+                    setState(() => estrelas = numero);
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  iconSize: 39,
+                  icon: Icon(
+                    numero <= estrelas
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: Colors.amber,
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$estrelas de 5 estrelas',
+              style: const TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: comentarioController,
+              maxLines: 4,
+              maxLength: 500,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Comentário (opcional)',
+                hintText: 'Conte o que achou do atendimento...',
+                alignLabelWithHint: true,
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(bottom: 55),
+                  child: Icon(Icons.chat_bubble_outline),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CANCELAR'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop({
+              'estrelas': estrelas,
+              'comentario': comentarioController.text.trim(),
+            });
+          },
+          icon: const Icon(Icons.send_rounded, size: 18),
+          label: const Text('ENVIAR'),
+          style: botaoPrincipal(),
+        ),
+      ],
     );
   }
 }
@@ -1424,11 +1642,22 @@ class _ClienteHistoricoPageState extends State<ClienteHistoricoPage> {
         setState(() => historico = dados is List ? dados : []);
       } else {
         dynamic dados = {};
-        try { dados = jsonDecode(resposta.body); } catch (_) {}
-        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível carregar o histórico.', erro: true);
+        try {
+          dados = jsonDecode(resposta.body);
+        } catch (_) {}
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível carregar o histórico.',
+          erro: true,
+        );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => carregando = false);
     }
@@ -1441,40 +1670,52 @@ class _ClienteHistoricoPageState extends State<ClienteHistoricoPage> {
   }
 
   Future<void> avaliar(dynamic item) async {
-    int estrelas = 5;
-    final comentarioController = TextEditingController();
     final dados = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: corCard,
-          title: const Text('Como foi seu atendimento?'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Avalie o atendimento de ${(item['barbeiro'] ?? '').toString().toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(color: corTextoSecundario)),
-            const SizedBox(height: 14),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (index) {
-              final n = index + 1;
-              return IconButton(onPressed: () => setDialogState(() => estrelas = n), iconSize: 36, icon: Icon(n <= estrelas ? Icons.star : Icons.star_border, color: corAzul));
-            })),
-            TextField(controller: comentarioController, maxLines: 3, maxLength: 500, decoration: const InputDecoration(labelText: 'Comentário (opcional)', hintText: 'Conte o que achou...')),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCELAR')),
-            ElevatedButton(onPressed: () => Navigator.pop(dialogContext, {'estrelas': estrelas, 'comentario': comentarioController.text.trim()}), style: botaoPrincipal(), child: const Text('ENVIAR')),
-          ],
-        ),
-      ),
+      barrierDismissible: false,
+      builder: (_) =>
+          _AvaliacaoDialog(barbeiro: (item['barbeiro'] ?? '').toString()),
     );
-    comentarioController.dispose();
+
     if (dados == null || !mounted) return;
+
     try {
-      final resposta = await http.post(Uri.parse('$api/cliente/avaliar'), headers: headersCliente(json: true), body: jsonEncode({'agendamento_id': numeroInt(item['id']), 'estrelas': dados['estrelas'], 'comentario': dados['comentario']}));
+      final resposta = await http.post(
+        Uri.parse('$api/cliente/avaliar'),
+        headers: headersCliente(json: true),
+        body: jsonEncode({
+          'agendamento_id': numeroInt(item['id']),
+          'estrelas': dados['estrelas'],
+          'comentario': dados['comentario'],
+        }),
+      );
+
       dynamic retorno = {};
-      try { retorno = jsonDecode(resposta.body); } catch (_) {}
+      try {
+        retorno = jsonDecode(resposta.body);
+      } catch (_) {}
+
       if (!mounted) return;
-      if (resposta.statusCode == 200) { mostrarMensagem(context, 'Obrigado pela avaliação! ⭐'); await carregar(); }
-      else { mostrarMensagem(context, retorno['erro']?.toString() ?? 'Não foi possível enviar a avaliação.', erro: true); }
-    } catch (_) { if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true); }
+
+      if (resposta.statusCode == 200) {
+        mostrarMensagem(context, 'Obrigado pela avaliação! ⭐');
+        await carregar();
+      } else {
+        mostrarMensagem(
+          context,
+          retorno['erro']?.toString() ?? 'Não foi possível enviar a avaliação.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+      }
+    }
   }
 
   @override
@@ -1482,93 +1723,162 @@ class _ClienteHistoricoPageState extends State<ClienteHistoricoPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meu histórico'),
-        actions: [IconButton(onPressed: carregar, icon: const Icon(Icons.refresh))],
+        actions: [
+          IconButton(onPressed: carregar, icon: const Icon(Icons.refresh)),
+        ],
       ),
       body: carregando
           ? const Center(child: CircularProgressIndicator(color: corAzul))
           : historico.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(25),
-                    child: Text(
-                      'Nenhum atendimento no histórico ainda.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: corTextoSecundario, fontSize: 16),
-                    ),
-                  ),
-                )
-              : ListView.builder(
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(25),
+                child: Text(
+                  'Nenhum atendimento no histórico ainda.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: corTextoSecundario, fontSize: 16),
+                ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: historico.length,
+              itemBuilder: (context, index) {
+                final item = historico[index];
+                final status = (item['status'] ?? '').toString();
+                final cor = status == 'Cancelado'
+                    ? Colors.redAccent
+                    : Colors.greenAccent;
+                final valor = double.tryParse(item['valor'].toString()) ?? 0;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
-                  itemCount: historico.length,
-                  itemBuilder: (context, index) {
-                    final item = historico[index];
-                    final status = (item['status'] ?? '').toString();
-                    final cor = status == 'Cancelado' ? Colors.redAccent : Colors.greenAccent;
-                    final valor = double.tryParse(item['valor'].toString()) ?? 0;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: corCard,
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: const Color(0xFF303030)),
+                  decoration: BoxDecoration(
+                    color: corCard,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFF303030)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 43,
+                        height: 43,
+                        decoration: BoxDecoration(
+                          color: cor.withOpacity(.10),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(
+                          status == 'Cancelado'
+                              ? Icons.event_busy_outlined
+                              : Icons.check_circle_outline,
+                          color: cor,
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 43,
-                            height: 43,
-                            decoration: BoxDecoration(
-                              color: cor.withOpacity(.10),
-                              borderRadius: BorderRadius.circular(11),
-                            ),
-                            child: Icon(
-                              status == 'Cancelado' ? Icons.event_busy_outlined : Icons.check_circle_outline,
-                              color: cor,
-                            ),
-                          ),
-                          const SizedBox(width: 13),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  dataTela((item['dia'] ?? '').toString()),
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                Text('${item['horario'] ?? ''} • ${item['servico'] ?? ''}'),
-                                const SizedBox(height: 3),
-                                Text(
-                                  (item['barbeiro'] ?? '').toString().toUpperCase(),
-                                  style: const TextStyle(color: corTextoSecundario, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
-                                style: TextStyle(color: cor, fontWeight: FontWeight.bold),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              dataTela((item['dia'] ?? '').toString()),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
-                              if (status == 'Finalizado' && numeroInt(item['avaliado']) != 1) ...[
-                                const SizedBox(height: 7),
-                                OutlinedButton.icon(
-                                  onPressed: () => avaliar(item),
-                                  icon: const Icon(Icons.star_outline, size: 16),
-                                  label: const Text('AVALIAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                                  style: OutlinedButton.styleFrom(foregroundColor: corAzul, side: const BorderSide(color: corAzul), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                                ),
-                              ],
-                            ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${item['horario'] ?? ''} • ${item['servico'] ?? ''}',
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              (item['barbeiro'] ?? '').toString().toUpperCase(),
+                              style: const TextStyle(
+                                color: corTextoSecundario,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                            style: TextStyle(
+                              color: cor,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          if (status.trim().toLowerCase() == 'finalizado') ...[
+                            const SizedBox(height: 8),
+                            if (numeroInt(item['avaliado']) == 1)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(.10),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(.35),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      color: Colors.amber,
+                                      size: 16,
+                                    ),
+                                    SizedBox(width: 5),
+                                    Text(
+                                      'AVALIADO',
+                                      style: TextStyle(
+                                        color: Colors.greenAccent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              OutlinedButton.icon(
+                                onPressed: () => avaliar(item),
+                                icon: const Icon(Icons.star_outline, size: 17),
+                                label: const Text(
+                                  'AVALIAR ATENDIMENTO',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: corAzul,
+                                  side: const BorderSide(color: corAzul),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ],
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }
@@ -1630,7 +1940,9 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
         body: jsonEncode({'nome': nome, 'numero': numero, 'email': email}),
       );
       dynamic dados = {};
-      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
       if (!mounted) return;
       if (resposta.statusCode == 200) {
         clienteNomeLogado = nome;
@@ -1638,10 +1950,19 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
         clienteEmailLogado = email;
         mostrarMensagem(context, 'Perfil atualizado!');
       } else {
-        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível atualizar o perfil.', erro: true);
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível atualizar o perfil.',
+          erro: true,
+        );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => salvando = false);
     }
@@ -1652,11 +1973,19 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
     final nova = novaSenhaController.text;
     final confirmar = confirmarSenhaController.text;
     if (atual.isEmpty || nova.isEmpty || confirmar.isEmpty) {
-      mostrarMensagem(context, 'Preencha todos os campos da senha.', erro: true);
+      mostrarMensagem(
+        context,
+        'Preencha todos os campos da senha.',
+        erro: true,
+      );
       return;
     }
     if (nova.length < 6) {
-      mostrarMensagem(context, 'A nova senha precisa ter pelo menos 6 caracteres.', erro: true);
+      mostrarMensagem(
+        context,
+        'A nova senha precisa ter pelo menos 6 caracteres.',
+        erro: true,
+      );
       return;
     }
     if (nova != confirmar) {
@@ -1668,10 +1997,16 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
       final resposta = await http.put(
         Uri.parse('$api/cliente/alterar-senha'),
         headers: headersCliente(json: true),
-        body: jsonEncode({'senhaAtual': atual, 'novaSenha': nova, 'confirmarSenha': confirmar}),
+        body: jsonEncode({
+          'senhaAtual': atual,
+          'novaSenha': nova,
+          'confirmarSenha': confirmar,
+        }),
       );
       dynamic dados = {};
-      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
       if (!mounted) return;
       if (resposta.statusCode == 200) {
         senhaAtualController.clear();
@@ -1679,10 +2014,19 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
         confirmarSenhaController.clear();
         mostrarMensagem(context, 'Senha alterada com sucesso!');
       } else {
-        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível alterar a senha.', erro: true);
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível alterar a senha.',
+          erro: true,
+        );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => alterandoSenha = false);
     }
@@ -1709,25 +2053,37 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
           ),
           const SizedBox(height: 15),
           const Center(
-            child: Text('Dados pessoais', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            child: Text(
+              'Dados pessoais',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
           ),
           const SizedBox(height: 20),
           TextField(
             controller: nomeController,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nome', prefixIcon: Icon(Icons.person_outline)),
+            decoration: const InputDecoration(
+              labelText: 'Nome',
+              prefixIcon: Icon(Icons.person_outline),
+            ),
           ),
           const SizedBox(height: 13),
           TextField(
             controller: numeroController,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Telefone', prefixIcon: Icon(Icons.phone_outlined)),
+            decoration: const InputDecoration(
+              labelText: 'Telefone',
+              prefixIcon: Icon(Icons.phone_outlined),
+            ),
           ),
           const SizedBox(height: 13),
           TextField(
             controller: emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'E-mail', prefixIcon: Icon(Icons.email_outlined)),
+            decoration: const InputDecoration(
+              labelText: 'E-mail',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
           ),
           const SizedBox(height: 18),
           SizedBox(
@@ -1736,17 +2092,33 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
               onPressed: salvando ? null : salvarPerfil,
               style: botaoPrincipal(),
               icon: salvando
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.black,
+                      ),
+                    )
                   : const Icon(Icons.save_outlined),
-              label: Text(salvando ? 'SALVANDO...' : 'SALVAR PERFIL', style: const TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(
+                salvando ? 'SALVANDO...' : 'SALVAR PERFIL',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           const SizedBox(height: 30),
           const Divider(color: Color(0xFF333333)),
           const SizedBox(height: 22),
-          const Text('Alterar senha', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const Text(
+            'Alterar senha',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 7),
-          const Text('Use sua senha atual para definir uma nova.', style: TextStyle(color: corTextoSecundario)),
+          const Text(
+            'Use sua senha atual para definir uma nova.',
+            style: TextStyle(color: corTextoSecundario),
+          ),
           const SizedBox(height: 17),
           TextField(
             controller: senhaAtualController,
@@ -1756,7 +2128,11 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
               prefixIcon: const Icon(Icons.lock_outline),
               suffixIcon: IconButton(
                 onPressed: () => setState(() => mostrarSenha = !mostrarSenha),
-                icon: Icon(mostrarSenha ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                icon: Icon(
+                  mostrarSenha
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
               ),
             ),
           ),
@@ -1764,13 +2140,19 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
           TextField(
             controller: novaSenhaController,
             obscureText: !mostrarSenha,
-            decoration: const InputDecoration(labelText: 'Nova senha', prefixIcon: Icon(Icons.password_outlined)),
+            decoration: const InputDecoration(
+              labelText: 'Nova senha',
+              prefixIcon: Icon(Icons.password_outlined),
+            ),
           ),
           const SizedBox(height: 13),
           TextField(
             controller: confirmarSenhaController,
             obscureText: !mostrarSenha,
-            decoration: const InputDecoration(labelText: 'Confirmar nova senha', prefixIcon: Icon(Icons.password_outlined)),
+            decoration: const InputDecoration(
+              labelText: 'Confirmar nova senha',
+              prefixIcon: Icon(Icons.password_outlined),
+            ),
           ),
           const SizedBox(height: 18),
           SizedBox(
@@ -1778,9 +2160,19 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
             child: OutlinedButton.icon(
               onPressed: alterandoSenha ? null : alterarSenha,
               icon: alterandoSenha
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: corAzul))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: corAzul,
+                      ),
+                    )
                   : const Icon(Icons.lock_reset),
-              label: Text(alterandoSenha ? 'ALTERANDO...' : 'ALTERAR SENHA', style: const TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(
+                alterandoSenha ? 'ALTERANDO...' : 'ALTERAR SENHA',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -1821,7 +2213,9 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
   @override
   void initState() {
     super.initState();
-    barbeiroSelecionado = (widget.agendamento['barbeiro'] ?? 'guel').toString().toLowerCase();
+    barbeiroSelecionado = (widget.agendamento['barbeiro'] ?? 'guel')
+        .toString()
+        .toLowerCase();
     servicoSelecionado = (widget.agendamento['servico'] ?? 'Corte').toString();
     final data = (widget.agendamento['dia'] ?? '').toString();
     if (data.length >= 10) {
@@ -1842,8 +2236,10 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
   }
 
   bool trabalha(DateTime data) {
-    if (barbeiroSelecionado == 'gustavo') return data.weekday == DateTime.saturday;
-    return data.weekday >= DateTime.wednesday && data.weekday <= DateTime.saturday;
+    if (barbeiroSelecionado == 'gustavo')
+      return data.weekday == DateTime.saturday;
+    return data.weekday >= DateTime.wednesday &&
+        data.weekday <= DateTime.saturday;
   }
 
   Future<void> escolherData() async {
@@ -1880,7 +2276,9 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
     });
     try {
       final resposta = await http.get(
-        Uri.parse('$api/horarios-livres/${formatarDataBackend(dataSelecionada!)}/$barbeiroSelecionado'),
+        Uri.parse(
+          '$api/horarios-livres/${formatarDataBackend(dataSelecionada!)}/$barbeiroSelecionado',
+        ),
       );
       if (!mounted) return;
       if (resposta.statusCode == 200) {
@@ -1888,12 +2286,17 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
         var lista = (dados as List).map((e) => e.toString()).toList();
         final agora = DateTime.now();
         final hoje = DateTime(agora.year, agora.month, agora.day);
-        final selecionada = DateTime(dataSelecionada!.year, dataSelecionada!.month, dataSelecionada!.day);
+        final selecionada = DateTime(
+          dataSelecionada!.year,
+          dataSelecionada!.month,
+          dataSelecionada!.day,
+        );
         if (selecionada == hoje) {
           final minutosAgora = agora.hour * 60 + agora.minute;
           lista = lista.where((h) {
             final p = h.split(':');
-            final minutos = (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+            final minutos =
+                (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
             return minutos > minutosAgora;
           }).toList();
         }
@@ -1902,10 +2305,19 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
           horarioSelecionado = lista.isNotEmpty ? lista.first : null;
         });
       } else {
-        mostrarMensagem(context, 'Não foi possível carregar os horários.', erro: true);
+        mostrarMensagem(
+          context,
+          'Não foi possível carregar os horários.',
+          erro: true,
+        );
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => carregando = false);
     }
@@ -1921,7 +2333,9 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
     setState(() => salvando = true);
     try {
       final resposta = await http.put(
-        Uri.parse('$api/cliente/agendamentos/${numeroInt(widget.agendamento['id'])}'),
+        Uri.parse(
+          '$api/cliente/agendamentos/${numeroInt(widget.agendamento['id'])}',
+        ),
         headers: headersCliente(json: true),
         body: jsonEncode({
           'dia': formatarDataBackend(dataSelecionada!),
@@ -1932,24 +2346,48 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
         }),
       );
       dynamic dados = {};
-      try { dados = jsonDecode(resposta.body); } catch (_) {}
+      try {
+        dados = jsonDecode(resposta.body);
+      } catch (_) {}
       if (!mounted) return;
       if (resposta.statusCode == 200) {
         await showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 10), Text('Remarcado!')]),
-            content: Text('Seu novo horário:\n\n${formatarDataTela(dataSelecionada!)} às $horarioSelecionado\n${barbeiroSelecionado.toUpperCase()}\n$servicoSelecionado'),
-            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK'))],
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 10),
+                Text('Remarcado!'),
+              ],
+            ),
+            content: Text(
+              'Seu novo horário:\n\n${formatarDataTela(dataSelecionada!)} às $horarioSelecionado\n${barbeiroSelecionado.toUpperCase()}\n$servicoSelecionado',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
         if (mounted) Navigator.pop(context, true);
       } else {
-        mostrarMensagem(context, dados['erro']?.toString() ?? 'Não foi possível remarcar.', erro: true);
+        mostrarMensagem(
+          context,
+          dados['erro']?.toString() ?? 'Não foi possível remarcar.',
+          erro: true,
+        );
         await carregarHorarios();
       }
     } catch (_) {
-      if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true);
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
     } finally {
       if (mounted) setState(() => salvando = false);
     }
@@ -1962,51 +2400,97 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text('Escolha o novo horário', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          const Text(
+            'Escolha o novo horário',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 7),
-          const Text('O horário antigo só muda depois da confirmação.', style: TextStyle(color: corTextoSecundario)),
+          const Text(
+            'O horário antigo só muda depois da confirmação.',
+            style: TextStyle(color: corTextoSecundario),
+          ),
           const SizedBox(height: 24),
-          const Text('Barbeiro', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const Text(
+            'Barbeiro',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _opcao('guel', 'Guel')),
-            const SizedBox(width: 10),
-            Expanded(child: _opcao('gustavo', 'Gustavo')),
-          ]),
+          Row(
+            children: [
+              Expanded(child: _opcao('guel', 'Guel')),
+              const SizedBox(width: 10),
+              Expanded(child: _opcao('gustavo', 'Gustavo')),
+            ],
+          ),
           const SizedBox(height: 23),
-          const Text('Serviço', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const Text(
+            'Serviço',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _servico('Corte', 30)),
-            const SizedBox(width: 10),
-            Expanded(child: _servico('Corte + Barba', 50)),
-          ]),
+          Row(
+            children: [
+              Expanded(child: _servico('Corte', 30)),
+              const SizedBox(width: 10),
+              Expanded(child: _servico('Corte + Barba', 50)),
+            ],
+          ),
           const SizedBox(height: 23),
-          const Text('Nova data', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const Text(
+            'Nova data',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           InkWell(
             onTap: escolherData,
             borderRadius: BorderRadius.circular(14),
             child: Container(
               padding: const EdgeInsets.all(17),
-              decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: corAzul)),
-              child: Row(children: [
-                const Icon(Icons.calendar_month, color: corAzul),
-                const SizedBox(width: 12),
-                Expanded(child: Text(dataSelecionada == null ? 'Selecionar data' : formatarDataTela(dataSelecionada!), style: const TextStyle(fontSize: 16))),
-                const Icon(Icons.chevron_right, color: corTextoSecundario),
-              ]),
+              decoration: BoxDecoration(
+                color: corCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: corAzul),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_month, color: corAzul),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      dataSelecionada == null
+                          ? 'Selecionar data'
+                          : formatarDataTela(dataSelecionada!),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: corTextoSecundario),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 23),
-          const Text('Novo horário', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const Text(
+            'Novo horário',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           if (carregando)
-            const Center(child: Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: corAzul)))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(25),
+                child: CircularProgressIndicator(color: corAzul),
+              ),
+            )
           else if (dataSelecionada == null)
-            const Text('Escolha uma data.', style: TextStyle(color: corTextoSecundario))
+            const Text(
+              'Escolha uma data.',
+              style: TextStyle(color: corTextoSecundario),
+            )
           else if (horariosLivres.isEmpty)
-            const Text('Não há horários livres nesta data.', style: TextStyle(color: corTextoSecundario))
+            const Text(
+              'Não há horários livres nesta data.',
+              style: TextStyle(color: corTextoSecundario),
+            )
           else
             Wrap(
               spacing: 9,
@@ -2014,7 +2498,13 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
               children: horariosLivres.map((h) {
                 final selecionado = h == horarioSelecionado;
                 return ChoiceChip(
-                  label: Text(h, style: TextStyle(color: selecionado ? Colors.black : Colors.white, fontWeight: FontWeight.bold)),
+                  label: Text(
+                    h,
+                    style: TextStyle(
+                      color: selecionado ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   selected: selecionado,
                   selectedColor: corAzul,
                   backgroundColor: corCard,
@@ -2026,10 +2516,24 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
-              onPressed: salvando || horarioSelecionado == null ? null : confirmar,
+              onPressed: salvando || horarioSelecionado == null
+                  ? null
+                  : confirmar,
               style: botaoPrincipal(),
-              icon: salvando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) : const Icon(Icons.check),
-              label: Text(salvando ? 'SALVANDO...' : 'CONFIRMAR NOVO HORÁRIO', style: const TextStyle(fontWeight: FontWeight.bold)),
+              icon: salvando
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.black,
+                      ),
+                    )
+                  : const Icon(Icons.check),
+              label: Text(
+                salvando ? 'SALVANDO...' : 'CONFIRMAR NOVO HORÁRIO',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -2054,9 +2558,20 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
         decoration: BoxDecoration(
           color: selecionado ? corAzul.withOpacity(.12) : corCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selecionado ? corAzul : const Color(0xFF333333)),
+          border: Border.all(
+            color: selecionado ? corAzul : const Color(0xFF333333),
+          ),
         ),
-        child: Column(children: [Icon(selecionado ? Icons.check_circle : Icons.person, color: corAzul), const SizedBox(height: 6), Text(nome, style: const TextStyle(fontWeight: FontWeight.bold))]),
+        child: Column(
+          children: [
+            Icon(
+              selecionado ? Icons.check_circle : Icons.person,
+              color: corAzul,
+            ),
+            const SizedBox(height: 6),
+            Text(nome, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
       ),
     );
   }
@@ -2068,8 +2583,32 @@ class _ClienteRemarcarPageState extends State<ClienteRemarcarPage> {
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(color: selecionado ? corAzul.withOpacity(.12) : corCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: selecionado ? corAzul : const Color(0xFF333333))),
-        child: Column(children: [Icon(selecionado ? Icons.check_circle : Icons.content_cut, color: corAzul), const SizedBox(height: 6), Text(nome, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 3), Text('R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}', style: const TextStyle(color: corTextoSecundario))]),
+        decoration: BoxDecoration(
+          color: selecionado ? corAzul.withOpacity(.12) : corCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selecionado ? corAzul : const Color(0xFF333333),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              selecionado ? Icons.check_circle : Icons.content_cut,
+              color: corAzul,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              nome,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}',
+              style: const TextStyle(color: corTextoSecundario),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2102,8 +2641,7 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
   bool carregandoHorarios = false;
   bool salvando = false;
 
-  double get valorServico =>
-      servicoSelecionado == 'Corte + Barba' ? 50 : 30;
+  double get valorServico => servicoSelecionado == 'Corte + Barba' ? 50 : 30;
 
   String nomeBarbeiro(String barbeiro) {
     return barbeiro == 'gustavo' ? 'Gustavo' : 'Guel';
@@ -2351,20 +2889,10 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
-                  child: _opcaoBarbeiro(
-                    'guel',
-                    'Guel',
-                    Icons.person,
-                  ),
-                ),
+                Expanded(child: _opcaoBarbeiro('guel', 'Guel', Icons.person)),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _opcaoBarbeiro(
-                    'gustavo',
-                    'Gustavo',
-                    Icons.person,
-                  ),
+                  child: _opcaoBarbeiro('gustavo', 'Gustavo', Icons.person),
                 ),
               ],
             ),
@@ -2377,13 +2905,9 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
-                  child: _opcaoServico('Corte', 30),
-                ),
+                Expanded(child: _opcaoServico('Corte', 30)),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _opcaoServico('Corte + Barba', 50),
-                ),
+                Expanded(child: _opcaoServico('Corte + Barba', 50)),
               ],
             ),
 
@@ -2424,10 +2948,7 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
                         ),
                       ),
                     ),
-                    const Icon(
-                      Icons.chevron_right,
-                      color: corTextoSecundario,
-                    ),
+                    const Icon(Icons.chevron_right, color: corTextoSecundario),
                   ],
                 ),
               ),
@@ -2472,9 +2993,7 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
                     selectedColor: corAzul,
                     backgroundColor: corCard,
                     side: BorderSide(
-                      color: selecionado
-                          ? corAzul
-                          : const Color(0xFF333333),
+                      color: selecionado ? corAzul : const Color(0xFF333333),
                     ),
                     onSelected: (_) {
                       setState(() => horarioSelecionado = horario);
@@ -2541,10 +3060,7 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
             const Text(
               'O horário só será confirmado se ainda estiver disponível no servidor.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: corTextoSecundario,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: corTextoSecundario, fontSize: 12),
             ),
           ],
         ),
@@ -2582,10 +3098,7 @@ class _ClienteAgendamentoPageState extends State<ClienteAgendamentoPage> {
               size: 28,
             ),
             const SizedBox(height: 7),
-            Text(
-              nome,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text(nome, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -3234,7 +3747,6 @@ class PainelBarbeiro extends StatefulWidget {
 }
 
 class _PainelBarbeiroState extends State<PainelBarbeiro> {
-
   String formatarDataBackend(DateTime data) {
     final ano = data.year.toString().padLeft(4, '0');
     final mes = data.month.toString().padLeft(2, '0');
@@ -3353,7 +3865,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           headers: headersAutenticados(),
         ),
         http.get(
-          Uri.parse('$api/app/agendamentos-dia/${widget.barbeiro}/${formatarDataBackend(dataAgendaSelecionada)}'),
+          Uri.parse(
+            '$api/app/agendamentos-dia/${widget.barbeiro}/${formatarDataBackend(dataAgendaSelecionada)}',
+          ),
           headers: headersAutenticados(),
         ),
         http.get(
@@ -3831,9 +4345,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       final horarioA = (a['horario'] ?? '').toString();
       final horarioB = (b['horario'] ?? '').toString();
 
-      return minutosDoHorario(horarioA).compareTo(
-        minutosDoHorario(horarioB),
-      );
+      return minutosDoHorario(horarioA).compareTo(minutosDoHorario(horarioB));
     });
 
     return lista;
@@ -3842,9 +4354,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   dynamic proximoAgendamentoHoje() {
     final lista = agendamentosHojeOrdenados()
         .where(
-          (item) =>
-              !agendamentoFinalizado(item) &&
-              !agendamentoCancelado(item),
+          (item) => !agendamentoFinalizado(item) && !agendamentoCancelado(item),
         )
         .toList();
 
@@ -3925,9 +4435,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       decoration: BoxDecoration(
         color: const Color(0xFF17252C),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: corAzul.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: corAzul.withValues(alpha: 0.55)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3935,10 +4443,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 5,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
                   color: corAzul.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(30),
@@ -3954,11 +4459,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 ),
               ),
               const Spacer(),
-              const Icon(
-                Icons.schedule_outlined,
-                color: corAzul,
-                size: 19,
-              ),
+              const Icon(Icons.schedule_outlined, color: corAzul, size: 19),
               const SizedBox(width: 5),
               Text(
                 horario,
@@ -3986,10 +4487,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
           Text(
             servico,
-            style: const TextStyle(
-              color: corTextoSecundario,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: corTextoSecundario, fontSize: 14),
           ),
 
           const SizedBox(height: 14),
@@ -4033,16 +4531,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                           editarAgendamento(item);
                         },
                   style: botaoPrincipal(),
-                  icon: const Icon(
-                    Icons.edit_calendar_outlined,
-                    size: 18,
-                  ),
+                  icon: const Icon(Icons.edit_calendar_outlined, size: 18),
                   label: const Text(
                     'REMARCAR',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               ),
@@ -4171,10 +4663,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     nomePainel.isEmpty ? widget.nome : nomePainel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: corAzul,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: corAzul),
                   ),
                 ],
               ),
@@ -4321,7 +4810,15 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           titulo: 'Avaliações',
           subtitulo: 'Veja as notas e comentários dos clientes',
           aoClicar: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => AvaliacoesBarbeiroPage(barbeiro: widget.barbeiro, nomeBarbeiro: widget.nome)));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AvaliacoesBarbeiroPage(
+                  barbeiro: widget.barbeiro,
+                  nomeBarbeiro: widget.nome,
+                ),
+              ),
+            );
           },
         ),
         _opcaoMais(
@@ -4447,10 +4944,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                   icon: const Icon(Icons.add, size: 19),
                   label: const Text(
                     'AGENDAR',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               ),
@@ -4469,10 +4963,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
               const Expanded(
                 child: Text(
                   'Resumo do dia',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               Container(
@@ -4557,35 +5048,24 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
           Row(
             children: [
-              const Icon(
-                Icons.content_cut,
-                color: corAzul,
-                size: 20,
-              ),
+              const Icon(Icons.content_cut, color: corAzul, size: 20),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   'Agenda de hoje',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ),
               Text(
                 '${listaHoje.length} horário${listaHoje.length == 1 ? '' : 's'}',
-                style: const TextStyle(
-                  color: corTextoSecundario,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: corTextoSecundario, fontSize: 12),
               ),
             ],
           ),
 
           const SizedBox(height: 14),
 
-          if (listaHoje.isEmpty)
-            mensagemVazia('Nenhum agendamento para hoje.'),
+          if (listaHoje.isEmpty) mensagemVazia('Nenhum agendamento para hoje.'),
 
           ...listaHoje.map(
             (item) => cardAgendamento(
@@ -4625,33 +5105,23 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       dataAgendaSelecionada.day,
     );
 
-    final dataSelecionadaTexto =
-        formatarDataBackend(dataSelecionada);
+    final dataSelecionadaTexto = formatarDataBackend(dataSelecionada);
 
     final agendamentosDoDia = List<dynamic>.from(agendaSelecionada);
 
     agendamentosDoDia.sort((a, b) {
       return minutosDoHorario(
         (a['horario'] ?? '').toString(),
-      ).compareTo(
-        minutosDoHorario(
-          (b['horario'] ?? '').toString(),
-        ),
-      );
+      ).compareTo(minutosDoHorario((b['horario'] ?? '').toString()));
     });
 
     final ativos = agendamentosDoDia.where((item) {
-      return !agendamentoCancelado(item) &&
-          !agendamentoFinalizado(item);
+      return !agendamentoCancelado(item) && !agendamentoFinalizado(item);
     }).length;
 
-    final concluidos = agendamentosDoDia.where(
-      agendamentoFinalizado,
-    ).length;
+    final concluidos = agendamentosDoDia.where(agendamentoFinalizado).length;
 
-    final cancelados = agendamentosDoDia.where(
-      agendamentoCancelado,
-    ).length;
+    final cancelados = agendamentosDoDia.where(agendamentoCancelado).length;
 
     double faturamento = 0;
     for (final item in agendamentosDoDia) {
@@ -4661,15 +5131,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
     }
 
     String nomeCurtoDia(int weekday) {
-      const nomes = [
-        'SEG',
-        'TER',
-        'QUA',
-        'QUI',
-        'SEX',
-        'SÁB',
-        'DOM',
-      ];
+      const nomes = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
       return nomes[weekday - 1];
     }
 
@@ -4695,10 +5157,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     SizedBox(height: 4),
                     Text(
                       'Organize seus atendimentos da semana',
-                      style: TextStyle(
-                        color: corTextoSecundario,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: corTextoSecundario, fontSize: 13),
                     ),
                   ],
                 ),
@@ -4716,16 +5175,10 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     vertical: 11,
                   ),
                 ),
-                icon: const Icon(
-                  Icons.add,
-                  size: 19,
-                ),
+                icon: const Icon(Icons.add, size: 19),
                 label: const Text(
                   'AGENDAR',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -4739,8 +5192,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: diasSemana.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final dia = diasSemana[index];
 
@@ -4754,21 +5206,17 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                     dia.month == agora.month &&
                     dia.day == agora.day;
 
-                final diaTexto =
-                    formatarDataBackend(dia);
+                final diaTexto = formatarDataBackend(dia);
 
                 final quantidade = semana.where((item) {
-                  return (item['dia'] ?? '').toString() ==
-                      diaTexto &&
+                  return (item['dia'] ?? '').toString() == diaTexto &&
                       !agendamentoCancelado(item);
                 }).length;
 
                 return SizedBox(
                   width: 65,
                   child: Material(
-                    color: selecionado
-                        ? corAzul
-                        : corCard,
+                    color: selecionado ? corAzul : corCard,
                     borderRadius: BorderRadius.circular(14),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
@@ -4784,8 +5232,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                           horizontal: 5,
                         ),
                         child: Column(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               nomeCurtoDia(dia.weekday),
@@ -4810,24 +5257,20 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                             ),
                             const SizedBox(height: 2),
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 if (ehHoje && !selecionado)
                                   Container(
                                     width: 5,
                                     height: 5,
-                                    margin:
-                                        const EdgeInsets.only(right: 3),
+                                    margin: const EdgeInsets.only(right: 3),
                                     decoration: const BoxDecoration(
                                       color: corAzul,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
                                 Text(
-                                  quantidade == 0
-                                      ? 'livre'
-                                      : '$quantidade',
+                                  quantidade == 0 ? 'livre' : '$quantidade',
                                   style: TextStyle(
                                     color: selecionado
                                         ? Colors.black87
@@ -4863,10 +5306,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                   });
                   await carregarAgendaSelecionada();
                 },
-                icon: const Icon(
-                  Icons.today_outlined,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.today_outlined, size: 18),
                 label: const Text('VOLTAR PARA HOJE'),
                 style: TextButton.styleFrom(
                   foregroundColor: corAzul,
@@ -4883,9 +5323,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             decoration: BoxDecoration(
               color: corCard,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFF2B2B2B),
-              ),
+              border: Border.all(color: const Color(0xFF2B2B2B)),
             ),
             child: Row(
               children: [
@@ -4906,8 +5344,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         formatarData(dataSelecionadaTexto),
@@ -4946,16 +5383,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
 
           if (agendamentosDoDia.isEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 34,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 34),
               decoration: BoxDecoration(
                 color: corCard,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF2B2B2B),
-                ),
+                border: Border.all(color: const Color(0xFF2B2B2B)),
               ),
               child: Column(
                 children: [
@@ -4968,19 +5400,13 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                   const Text(
                     'Nenhum agendamento neste dia',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'Você pode adicionar um cliente manualmente.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: corTextoSecundario,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: corTextoSecundario, fontSize: 12),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -5003,41 +5429,35 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             )
           else
             ...agendamentosDoDia.map((item) {
-              final horario =
-                  (item['horario'] ?? '').toString();
+              final horario = (item['horario'] ?? '').toString();
               final cancelado = agendamentoCancelado(item);
               final finalizado = agendamentoFinalizado(item);
               final fixo = numeroInt(item['fixo']) == 1;
 
-              final minutos =
-                  minutosDoHorario(horario);
-              final agoraMinutos =
-                  (agora.hour * 60) + agora.minute;
+              final minutos = minutosDoHorario(horario);
+              final agoraMinutos = (agora.hour * 60) + agora.minute;
 
               final ehHoje =
                   dataSelecionada.year == agora.year &&
                   dataSelecionada.month == agora.month &&
                   dataSelecionada.day == agora.day;
 
-              final jaPassou =
-                  ehHoje && minutos < agoraMinutos;
+              final jaPassou = ehHoje && minutos < agoraMinutos;
 
               final corLinha = cancelado
                   ? Colors.redAccent
                   : finalizado
-                      ? Colors.greenAccent
-                      : jaPassou
-                          ? Colors.orangeAccent
-                          : corAzul;
+                  ? Colors.greenAccent
+                  : jaPassou
+                  ? Colors.orangeAccent
+                  : corAzul;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: corCard,
                   borderRadius: BorderRadius.circular(15),
-                  border: Border.all(
-                    color: const Color(0xFF2B2B2B),
-                  ),
+                  border: Border.all(color: const Color(0xFF2B2B2B)),
                 ),
                 child: IntrinsicHeight(
                   child: Row(
@@ -5046,36 +5466,27 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                         width: 5,
                         decoration: BoxDecoration(
                           color: corLinha,
-                          borderRadius:
-                              const BorderRadius.horizontal(
+                          borderRadius: const BorderRadius.horizontal(
                             left: Radius.circular(15),
                           ),
                         ),
                       ),
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            13,
-                            13,
-                            12,
-                            13,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(13, 13, 12, 13),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
                                   Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 9,
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF202A2F),
-                                      borderRadius:
-                                          BorderRadius.circular(9),
+                                      borderRadius: BorderRadius.circular(9),
                                     ),
                                     child: Text(
                                       horario,
@@ -5087,20 +5498,17 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                     ),
                                   ),
                                   const SizedBox(width: 9),
-                                  if (jaPassou &&
-                                      !finalizado &&
-                                      !cancelado)
+                                  if (jaPassou && !finalizado && !cancelado)
                                     Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 7,
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.orangeAccent
-                                            .withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        color: Colors.orangeAccent.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: const Text(
                                         'ATRASADO',
@@ -5112,20 +5520,16 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                       ),
                                     ),
                                   if (fixo) ...[
-                                    if (jaPassou &&
-                                        !finalizado &&
-                                        !cancelado)
+                                    if (jaPassou && !finalizado && !cancelado)
                                       const SizedBox(width: 5),
                                     Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 7,
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF22343D),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: const Text(
                                         'FIXO',
@@ -5139,9 +5543,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                   ],
                                   const Spacer(),
                                   Text(
-                                    dinheiro(
-                                      numeroDouble(item['valor']),
-                                    ),
+                                    dinheiro(numeroDouble(item['valor'])),
                                     style: const TextStyle(
                                       color: corAzul,
                                       fontWeight: FontWeight.bold,
@@ -5167,8 +5569,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                   .isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  (item['servico'] ?? '')
-                                      .toString(),
+                                  (item['servico'] ?? '').toString(),
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
@@ -5182,8 +5583,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                   .isNotEmpty) ...[
                                 const SizedBox(height: 3),
                                 Text(
-                                  (item['numero'] ?? '')
-                                      .toString(),
+                                  (item['numero'] ?? '').toString(),
                                   style: const TextStyle(
                                     color: corTextoSecundario,
                                     fontSize: 12,
@@ -5218,22 +5618,17 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                                   abrirWhatsApp(item);
                                                 },
                                           style: OutlinedButton.styleFrom(
-                                            foregroundColor:
-                                                Colors.greenAccent,
+                                            foregroundColor: Colors.greenAccent,
                                             side: BorderSide(
                                               color: fixo
                                                   ? Colors.grey.shade800
                                                   : Colors.greenAccent,
                                             ),
-                                            shape:
-                                                RoundedRectangleBorder(
+                                            shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(
-                                                9,
-                                              ),
+                                                  BorderRadius.circular(9),
                                             ),
-                                            padding:
-                                                const EdgeInsets.symmetric(
+                                            padding: const EdgeInsets.symmetric(
                                               horizontal: 7,
                                             ),
                                           ),
@@ -5244,8 +5639,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                           label: const Text(
                                             'WHATSAPP',
                                             style: TextStyle(
-                                              fontWeight:
-                                                  FontWeight.bold,
+                                              fontWeight: FontWeight.bold,
                                               fontSize: 10,
                                             ),
                                           ),
@@ -5269,15 +5663,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                                   ? Colors.grey.shade800
                                                   : corAzul,
                                             ),
-                                            shape:
-                                                RoundedRectangleBorder(
+                                            shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(
-                                                9,
-                                              ),
+                                                  BorderRadius.circular(9),
                                             ),
-                                            padding:
-                                                const EdgeInsets.symmetric(
+                                            padding: const EdgeInsets.symmetric(
                                               horizontal: 7,
                                             ),
                                           ),
@@ -5288,8 +5678,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                           label: const Text(
                                             'REMARCAR',
                                             style: TextStyle(
-                                              fontWeight:
-                                                  FontWeight.bold,
+                                              fontWeight: FontWeight.bold,
                                               fontSize: 10,
                                             ),
                                           ),
@@ -5309,15 +5698,11 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                                                 );
                                               },
                                         style: botaoPrincipal(),
-                                        icon: const Icon(
-                                          Icons.check,
-                                          size: 17,
-                                        ),
+                                        icon: const Icon(Icons.check, size: 17),
                                         label: const Text(
                                           'FINALIZAR',
                                           style: TextStyle(
-                                            fontWeight:
-                                                FontWeight.bold,
+                                            fontWeight: FontWeight.bold,
                                             fontSize: 10,
                                           ),
                                         ),
@@ -7179,7 +7564,6 @@ class _EditarAgendamentoPageState extends State<EditarAgendamentoPage> {
     final dia = data.day.toString().padLeft(2, '0');
     return '$ano-$mes-$dia';
   }
-
 }
 
 // ======================================================
@@ -9019,8 +9403,13 @@ String nomeDiaSemana(int dia) {
 class AvaliacoesBarbeiroPage extends StatefulWidget {
   final String barbeiro;
   final String nomeBarbeiro;
-  const AvaliacoesBarbeiroPage({super.key, required this.barbeiro, required this.nomeBarbeiro});
-  @override State<AvaliacoesBarbeiroPage> createState() => _AvaliacoesBarbeiroPageState();
+  const AvaliacoesBarbeiroPage({
+    super.key,
+    required this.barbeiro,
+    required this.nomeBarbeiro,
+  });
+  @override
+  State<AvaliacoesBarbeiroPage> createState() => _AvaliacoesBarbeiroPageState();
 }
 
 class _AvaliacoesBarbeiroPageState extends State<AvaliacoesBarbeiroPage> {
@@ -9028,32 +9417,190 @@ class _AvaliacoesBarbeiroPageState extends State<AvaliacoesBarbeiroPage> {
   double media = 0;
   int total = 0;
   List<dynamic> avaliacoes = [];
-  @override void initState() { super.initState(); carregar(); }
+  @override
+  void initState() {
+    super.initState();
+    carregar();
+  }
+
   Future<void> carregar() async {
     setState(() => carregando = true);
     try {
-      final resposta = await http.get(Uri.parse('$api/app/avaliacoes/${widget.barbeiro}'), headers: headersAutenticados());
+      final resposta = await http.get(
+        Uri.parse('$api/app/avaliacoes/${widget.barbeiro}'),
+        headers: headersAutenticados(),
+      );
       if (!mounted) return;
       if (resposta.statusCode == 200) {
         final d = jsonDecode(resposta.body);
-        setState(() { media = double.tryParse(d['media']?.toString() ?? '') ?? 0; total = int.tryParse(d['total']?.toString() ?? '') ?? 0; avaliacoes = d['avaliacoes'] is List ? d['avaliacoes'] : []; });
-      } else { mostrarMensagem(context, 'Não foi possível carregar as avaliações.', erro: true); }
-    } catch (_) { if (mounted) mostrarMensagem(context, 'Não foi possível conectar ao servidor.', erro: true); }
-    finally { if (mounted) setState(() => carregando = false); }
+        setState(() {
+          media = double.tryParse(d['media']?.toString() ?? '') ?? 0;
+          total = int.tryParse(d['total']?.toString() ?? '') ?? 0;
+          avaliacoes = d['avaliacoes'] is List ? d['avaliacoes'] : [];
+        });
+      } else {
+        mostrarMensagem(
+          context,
+          'Não foi possível carregar as avaliações.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted)
+        mostrarMensagem(
+          context,
+          'Não foi possível conectar ao servidor.',
+          erro: true,
+        );
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
   }
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Avaliações'), actions: [IconButton(onPressed: carregar, icon: const Icon(Icons.refresh))]),
-      body: RefreshIndicator(color: corAzul, onRefresh: carregar, child: ListView(padding: const EdgeInsets.all(16), children: [
-        Container(padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFF303030))), child: Column(children: [
-          Text(widget.nomeBarbeiro, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.star, color: corAzul, size: 34), const SizedBox(width: 8), Text(media.toStringAsFixed(1), style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900))]),
-          Text('$total avaliação${total == 1 ? '' : 'ões'}', style: const TextStyle(color: corTextoSecundario)),
-        ])), const SizedBox(height: 18),
-        if (carregando) const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: corAzul)))
-        else if (avaliacoes.isEmpty) const Padding(padding: EdgeInsets.all(35), child: Column(children: [Icon(Icons.star_border, size: 55, color: corTextoSecundario), SizedBox(height: 12), Text('Ainda não existem avaliações.', style: TextStyle(fontWeight: FontWeight.bold)), SizedBox(height: 5), Text('As avaliações dos clientes aparecerão aqui após os atendimentos.', textAlign: TextAlign.center, style: TextStyle(color: corTextoSecundario))]))
-        else ...avaliacoes.map((item) { final estrelas = int.tryParse(item['estrelas']?.toString() ?? '') ?? 0; final comentario = (item['comentario'] ?? '').toString().trim(); return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF303030))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text((item['cliente_nome'] ?? 'Cliente').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))), Row(children: List.generate(5, (i) => Icon(i < estrelas ? Icons.star : Icons.star_border, color: corAzul, size: 18)))]), const SizedBox(height: 7), Text('${item['servico'] ?? ''} • ${item['dia'] ?? ''} às ${item['horario'] ?? ''}', style: const TextStyle(color: corTextoSecundario, fontSize: 12)), if (comentario.isNotEmpty) ...[const SizedBox(height: 10), Text('“$comentario”', style: const TextStyle(fontSize: 14, height: 1.4))]])); }),
-      ])),
+      appBar: AppBar(
+        title: const Text('Avaliações'),
+        actions: [
+          IconButton(onPressed: carregar, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: RefreshIndicator(
+        color: corAzul,
+        onRefresh: carregar,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: corCard,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFF303030)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    widget.nomeBarbeiro,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.star, color: corAzul, size: 34),
+                      const SizedBox(width: 8),
+                      Text(
+                        media.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '$total avaliação${total == 1 ? '' : 'ões'}',
+                    style: const TextStyle(color: corTextoSecundario),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (carregando)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator(color: corAzul)),
+              )
+            else if (avaliacoes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(35),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.star_border,
+                      size: 55,
+                      color: corTextoSecundario,
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'Ainda não existem avaliações.',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'As avaliações dos clientes aparecerão aqui após os atendimentos.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: corTextoSecundario),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...avaliacoes.map((item) {
+                final estrelas =
+                    int.tryParse(item['estrelas']?.toString() ?? '') ?? 0;
+                final comentario = (item['comentario'] ?? '').toString().trim();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: corCard,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF303030)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (item['cliente_nome'] ?? 'Cliente').toString(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: List.generate(
+                              5,
+                              (i) => Icon(
+                                i < estrelas ? Icons.star : Icons.star_border,
+                                color: corAzul,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        '${item['servico'] ?? ''} • ${item['dia'] ?? ''} às ${item['horario'] ?? ''}',
+                        style: const TextStyle(
+                          color: corTextoSecundario,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (comentario.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          '“$comentario”',
+                          style: const TextStyle(fontSize: 14, height: 1.4),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
     );
   }
 }
