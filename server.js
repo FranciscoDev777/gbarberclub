@@ -152,7 +152,6 @@ function autenticarToken(req, res, next) {
       [
         "agendamentos-hoje",
         "agendamentos-semana",
-        "agendamentos-dia",
         "resumo-hoje",
         "fixos",
         "bloqueios",
@@ -452,6 +451,29 @@ db.run(`
     atualizado_em INTEGER NOT NULL
   )
 `);
+
+// Preferências de corte do cliente
+db.all(`PRAGMA table_info(clientes_app)`, (erro, colunas) => {
+  if (erro) {
+    console.error("Erro ao verificar clientes_app:", erro.message);
+    return;
+  }
+
+  const nomes = colunas.map((c) => c.name);
+  const adicionar = (nome, tipo) => {
+    if (!nomes.includes(nome)) {
+      db.run(`ALTER TABLE clientes_app ADD COLUMN ${nome} ${tipo}`, (erroAlteracao) => {
+        if (erroAlteracao) console.error(`Erro ao adicionar ${nome}:`, erroAlteracao.message);
+        else console.log(`Coluna ${nome} adicionada aos clientes_app.`);
+      });
+    }
+  };
+
+  adicionar('preferencia_corte', "TEXT DEFAULT 'Não informado'");
+  adicionar('preferencia_fade', "TEXT DEFAULT 'Não informado'");
+  adicionar('preferencia_barba', "TEXT DEFAULT 'Não informado'");
+  adicionar('observacoes_corte', "TEXT DEFAULT ''");
+});
 
 // ======================================================
 // AVALIAÇÕES DOS ATENDIMENTOS
@@ -1133,12 +1155,50 @@ app.post("/cliente/login", (req, res) => {
 
 
 // ======================================================
+// CLIENTE - PROGRAMA DE FIDELIDADE
+// ======================================================
+
+app.get("/cliente/fidelidade", autenticarClienteToken, (req, res) => {
+  db.all(
+    `SELECT servico, valor, dia, horario
+     FROM agendamentos
+     WHERE cliente_app_id = ?
+       AND fixo = 0
+       AND status = 'Finalizado'
+     ORDER BY dia DESC, horario DESC`,
+    [req.clienteAutenticadoId],
+    (erro, registros) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar programa de fidelidade." });
+      }
+
+      const cortes = registros.length;
+      const pontos = cortes * 10;
+      const totalGasto = registros.reduce(
+        (total, item) => total + (Number(item.valor) || 0),
+        0,
+      );
+
+      res.json({
+        pontos,
+        cortes,
+        totalGasto: Number(totalGasto.toFixed(2)),
+        meta: 50,
+        pontosPorAtendimento: 10,
+        recompensa: 10,
+      });
+    },
+  );
+});
+
+// ======================================================
 // CLIENTE - MEUS DADOS
 // ======================================================
 
 app.get("/cliente/me", autenticarClienteToken, (req, res) => {
   db.get(
-    `SELECT id, nome, numero, email, criado_em, atualizado_em FROM clientes_app WHERE id = ?`,
+    `SELECT id, nome, numero, email, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte, criado_em, atualizado_em FROM clientes_app WHERE id = ?`,
     [req.clienteAutenticadoId],
     (erro, cliente) => {
       if (erro) {
@@ -1157,14 +1217,23 @@ app.put("/cliente/me", autenticarClienteToken, (req, res) => {
   const nome = String(req.body.nome || "").trim();
   const numero = String(req.body.numero || "").trim();
   const email = String(req.body.email || "").trim().toLowerCase();
+  const preferenciaCorte = String(req.body.preferencia_corte || "Não informado").trim();
+  const preferenciaFade = String(req.body.preferencia_fade || "Não informado").trim();
+  const preferenciaBarba = String(req.body.preferencia_barba || "Não informado").trim();
+  const observacoesCorte = String(req.body.observacoes_corte || "").trim().slice(0, 300);
 
   if (!nome || !email || !email.includes("@")) {
     return res.status(400).json({ erro: "Nome e e-mail válidos são obrigatórios." });
   }
 
   db.run(
-    `UPDATE clientes_app SET nome = ?, numero = ?, email = ?, atualizado_em = ? WHERE id = ?`,
-    [nome, numero, email, Date.now(), req.clienteAutenticadoId],
+    `UPDATE clientes_app
+       SET nome = ?, numero = ?, email = ?,
+           preferencia_corte = ?, preferencia_fade = ?,
+           preferencia_barba = ?, observacoes_corte = ?,
+           atualizado_em = ?
+       WHERE id = ?`,
+    [nome, numero, email, preferenciaCorte, preferenciaFade, preferenciaBarba, observacoesCorte, Date.now(), req.clienteAutenticadoId],
     function (erro) {
       if (erro) {
         if (String(erro.message || "").toLowerCase().includes("unique")) {
@@ -3215,77 +3284,6 @@ app.get("/app/agendamentos-semana/:barbeiro", (req, res) => {
 });
 
 // ======================================================
-// AGENDAMENTOS DE UM DIA ESPECÍFICO
-// ======================================================
-
-app.get("/app/agendamentos-dia/:barbeiro/:dia", (req, res) => {
-  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
-  const dia = String(req.params.dia || "").trim();
-
-  if (!barbeiro || !dia) {
-    return res.status(400).json({
-      erro: "Barbeiro ou data inválidos.",
-    });
-  }
-
-  // Valida o formato YYYY-MM-DD sem deixar o JavaScript
-  // interpretar a data em UTC e mudar o dia.
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
-    return res.status(400).json({
-      erro: "Data inválida. Use o formato YYYY-MM-DD.",
-    });
-  }
-
-  const dataObjeto = criarDataLocal(dia);
-
-  if (Number.isNaN(dataObjeto.getTime())) {
-    return res.status(400).json({
-      erro: "Data inválida.",
-    });
-  }
-
-  const diaSemana = dataObjeto.getDay();
-
-  if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
-    return res.json([]);
-  }
-
-  db.all(
-    `
-      SELECT *
-      FROM agendamentos
-      WHERE barbeiro = ?
-        AND status != 'Cancelado'
-        AND (
-          (fixo = 0 AND dia = ?)
-          OR
-          (fixo = 1 AND dia_semana = ?)
-        )
-      ORDER BY horario
-    `,
-    [barbeiro, dia, diaSemana],
-    (erro, registros) => {
-      if (erro) {
-        console.error("Erro ao carregar agendamentos do dia:", erro.message);
-
-        return res.status(500).json({
-          erro: "Erro ao carregar agendamentos do dia.",
-        });
-      }
-
-      // Para horários fixos, o app precisa receber a data que está sendo
-      // visualizada, e não a data original em que o fixo foi cadastrado.
-      const resultado = registros.map((item) => ({
-        ...item,
-        dia: Number(item.fixo) === 1 ? dia : item.dia,
-      }));
-
-      res.json(resultado);
-    },
-  );
-});
-
-// ======================================================
 // FIXOS DO APP
 // ======================================================
 
@@ -3376,6 +3374,205 @@ app.delete("/app/fixos/:id", (req, res) => {
       );
     },
   );
+});
+
+// ======================================================
+// CRM - PREFERÊNCIAS DOS CLIENTES
+// ======================================================
+
+app.get("/app/crm/:barbeiro", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+
+  db.all(
+    `SELECT * FROM clientes WHERE barbeiro = ? ORDER BY nome COLLATE NOCASE`,
+    [barbeiro],
+    (erroClientes, clientes) => {
+      if (erroClientes) {
+        console.error(erroClientes);
+        return res.status(500).json({ erro: "Erro ao carregar CRM." });
+      }
+
+      db.all(
+        `SELECT id, nome, numero, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte FROM clientes_app`,
+        [],
+        (erroApp, contas) => {
+          if (erroApp) {
+            console.error(erroApp);
+            return res.status(500).json({ erro: "Erro ao carregar preferências." });
+          }
+
+          db.all(
+            `SELECT * FROM agendamentos WHERE barbeiro = ? AND fixo = 0`,
+            [barbeiro],
+            (erroAgendamentos, agendamentos) => {
+              if (erroAgendamentos) {
+                console.error(erroAgendamentos);
+                return res.status(500).json({ erro: "Erro ao carregar atendimentos." });
+              }
+
+              const normalizar = (v) => String(v || '').replace(/\D/g, '');
+
+              const resultado = clientes.map((cliente) => {
+                const historico = agendamentos.filter((item) => mesmoCliente(cliente, item));
+                const finalizados = historico.filter((item) => item.status === 'Finalizado');
+                const conta = contas.find((item) => {
+                  const a = normalizar(item.numero);
+                  const b = normalizar(cliente.numero);
+                  return a && b && a === b;
+                });
+
+                return {
+                  ...cliente,
+                  total_atendimentos: finalizados.length,
+                  total_gasto: finalizados.reduce((soma, item) => soma + Number(item.valor || 0), 0),
+                  ultimo_atendimento: finalizados.map((item) => String(item.dia || '')).filter(Boolean).sort().pop() || null,
+                  preferencia_corte: conta?.preferencia_corte || 'Não informado',
+                  preferencia_fade: conta?.preferencia_fade || 'Não informado',
+                  preferencia_barba: conta?.preferencia_barba || 'Não informado',
+                  observacoes_corte: conta?.observacoes_corte || '',
+                  cliente_app_id: conta?.id || null,
+                };
+              });
+
+              res.json(resultado);
+            },
+          );
+        },
+      );
+    },
+  );
+});
+
+// ======================================================
+// CRM - DETALHES DE UM CLIENTE
+// ======================================================
+
+function carregarDetalhesCRM(req, res, clienteId, telefoneBusca) {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  const numeroNormalizado = normalizarNumero(telefoneBusca);
+
+  db.all(
+    `SELECT * FROM clientes WHERE barbeiro = ? ORDER BY nome COLLATE NOCASE`,
+    [barbeiro],
+    (erroClientes, clientes) => {
+      if (erroClientes) {
+        console.error(erroClientes);
+        return res.status(500).json({ erro: "Erro ao carregar clientes." });
+      }
+
+      db.all(
+        `SELECT id, nome, numero, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte FROM clientes_app`,
+        [],
+        (erroContas, contas) => {
+          if (erroContas) {
+            console.error(erroContas);
+            return res.status(500).json({ erro: "Erro ao carregar contas dos clientes." });
+          }
+
+          db.all(
+            `SELECT * FROM agendamentos WHERE barbeiro = ? AND fixo = 0 ORDER BY dia DESC, horario DESC`,
+            [barbeiro],
+            (erroAgendamentos, agendamentos) => {
+              if (erroAgendamentos) {
+                console.error(erroAgendamentos);
+                return res.status(500).json({ erro: "Erro ao carregar histórico." });
+              }
+
+              let cliente = null;
+              let conta = null;
+
+              if (Number(clienteId) > 0) {
+                conta = contas.find((item) => Number(item.id) === Number(clienteId)) || null;
+                if (conta) {
+                  cliente = clientes.find((item) => normalizarNumero(item.numero) === normalizarNumero(conta.numero)) || null;
+                  if (!cliente) {
+                    cliente = {
+                      id: null,
+                      nome: conta.nome,
+                      numero: conta.numero,
+                      barbeiro,
+                    };
+                  }
+                }
+              }
+
+              if (!cliente && numeroNormalizado) {
+                cliente = clientes.find((item) => normalizarNumero(item.numero) === numeroNormalizado) || null;
+                conta = contas.find((item) => normalizarNumero(item.numero) === numeroNormalizado) || null;
+              }
+
+              if (!cliente) {
+                return res.status(404).json({ erro: "Cliente não encontrado." });
+              }
+
+              const historico = agendamentos.filter((item) => mesmoCliente(cliente, item));
+              const finalizados = historico.filter((item) => item.status === "Finalizado");
+              const ultimo = finalizados.find((item) => String(item.dia || "").trim() !== "") || null;
+
+              const totalServicos = finalizados.reduce((soma, item) => soma + (Number(item.valor) || 0), 0);
+
+              db.all(
+                `SELECT av.id, av.agendamento_id, av.estrelas, av.comentario, av.criado_em,
+                        a.servico, a.dia, a.horario
+                 FROM avaliacoes av
+                 LEFT JOIN agendamentos a ON a.id = av.agendamento_id
+                 WHERE av.barbeiro = ? AND av.cliente_app_id = ?
+                 ORDER BY av.criado_em DESC`,
+                [barbeiro, conta?.id || -1],
+                (erroAvaliacoes, avaliacoes) => {
+                  if (erroAvaliacoes) {
+                    console.error(erroAvaliacoes);
+                    return res.status(500).json({ erro: "Erro ao carregar avaliações." });
+                  }
+
+                  const media = avaliacoes.length
+                    ? Number((avaliacoes.reduce((s, item) => s + Number(item.estrelas || 0), 0) / avaliacoes.length).toFixed(1))
+                    : 0;
+
+                  const resposta = {
+                    cliente: {
+                      ...cliente,
+                      nome: conta?.nome || cliente.nome,
+                      numero: conta?.numero || cliente.numero,
+                      cliente_app_id: conta?.id || null,
+                    },
+                    nome: conta?.nome || cliente.nome,
+                    numero: conta?.numero || cliente.numero,
+                    total_atendimentos: finalizados.length,
+                    total_gasto: totalServicos,
+                    total_servicos: totalServicos,
+                    total_produtos: 0,
+                    quantidade_produtos: 0,
+                    ultimo_atendimento: ultimo?.dia || null,
+                    dias_sem_visita: ultimo?.dia ? Math.max(0, Math.floor((Date.now() - new Date(`${ultimo.dia}T12:00:00`).getTime()) / 86400000)) : 0,
+                    preferencia_corte: conta?.preferencia_corte || "Não informado",
+                    preferencia_fade: conta?.preferencia_fade || "Não informado",
+                    preferencia_barba: conta?.preferencia_barba || "Não informado",
+                    observacoes_corte: conta?.observacoes_corte || "",
+                    media_avaliacoes: media,
+                    total_avaliacoes: avaliacoes.length,
+                    avaliacoes,
+                    produtos_vendidos: [],
+                    historico,
+                  };
+
+                  return res.json(resposta);
+                },
+              );
+            },
+          );
+        },
+      );
+    },
+  );
+}
+
+app.get("/app/crm/:barbeiro/telefone/:numero", (req, res) => {
+  carregarDetalhesCRM(req, res, 0, req.params.numero);
+});
+
+app.get("/app/crm/:barbeiro/:clienteId", (req, res) => {
+  carregarDetalhesCRM(req, res, req.params.clienteId, "");
 });
 
 // ======================================================
