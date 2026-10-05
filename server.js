@@ -422,17 +422,57 @@ db.serialize(() => {
       criado_em INTEGER NOT NULL,
       atualizado_em INTEGER NOT NULL
     )
-  `);
+  `, (erroCriar) => {
+    if (erroCriar) {
+      console.error("Erro ao criar/verificar tabela clientes:", erroCriar.message);
+      return;
+    }
 
-  db.run(`
-    CREATE INDEX IF NOT EXISTS idx_clientes_barbeiro
-    ON clientes(barbeiro)
-  `);
+    // Migração para bancos antigos que ainda não possuem numero_busca.
+    db.all(`PRAGMA table_info(clientes)`, (erroInfo, colunas) => {
+      if (erroInfo) {
+        console.error("Erro ao verificar colunas de clientes:", erroInfo.message);
+        return;
+      }
 
-  db.run(`
-    CREATE INDEX IF NOT EXISTS idx_clientes_numero_busca
-    ON clientes(barbeiro, numero_busca)
-  `);
+      const possuiNumeroBusca = colunas.some(
+        (coluna) => coluna.name === "numero_busca",
+      );
+
+      const criarIndices = () => {
+        db.run(`
+          CREATE INDEX IF NOT EXISTS idx_clientes_barbeiro
+          ON clientes(barbeiro)
+        `);
+
+        db.run(`
+          CREATE INDEX IF NOT EXISTS idx_clientes_numero_busca
+          ON clientes(barbeiro, numero_busca)
+        `);
+      };
+
+      if (possuiNumeroBusca) {
+        criarIndices();
+        return;
+      }
+
+      db.run(
+        `ALTER TABLE clientes ADD COLUMN numero_busca TEXT DEFAULT ''`,
+        (erroAlteracao) => {
+          if (erroAlteracao) {
+            console.error(
+              "Erro ao adicionar numero_busca em clientes:",
+              erroAlteracao.message,
+            );
+            return;
+          }
+
+          console.log("Coluna numero_busca adicionada aos clientes.");
+          criarIndices();
+        },
+      );
+    });
+  });
 });
 
 // ======================================================
@@ -506,6 +546,35 @@ db.serialize(() => {
     if (erro) {
       console.error("Erro ao criar índice de avaliacoes:", erro.message);
     }
+  });
+});
+
+// ======================================================
+// PRODUTOS VENDIDOS NO CRM
+// ======================================================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS produtos_vendidos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agendamento_id INTEGER UNIQUE NOT NULL,
+      cliente_app_id INTEGER,
+      barbeiro TEXT NOT NULL,
+      produto TEXT NOT NULL,
+      valor REAL NOT NULL DEFAULT 0,
+      criado_em INTEGER NOT NULL,
+      FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
+      FOREIGN KEY (cliente_app_id) REFERENCES clientes_app(id)
+    )
+  `, (erro) => {
+    if (erro) console.error("Erro ao criar tabela produtos_vendidos:", erro.message);
+    else console.log("Tabela produtos_vendidos pronta!");
+  });
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_produtos_vendidos_cliente
+    ON produtos_vendidos(cliente_app_id, criado_em)
+  `, (erro) => {
+    if (erro) console.error("Erro ao criar índice de produtos_vendidos:", erro.message);
   });
 });
 
@@ -607,14 +676,13 @@ function salvarClienteAutomaticamente({ nome, numero, barbeiro }) {
           SELECT *
           FROM clientes
           WHERE barbeiro = ?
-            AND numero_busca = ?
+            AND REPLACE(REPLACE(REPLACE(REPLACE(numero, '(', ''), ')', ''), '-', ''), ' ', '') = ?
           LIMIT 1
         `
       : `
           SELECT *
           FROM clientes
           WHERE barbeiro = ?
-            AND numero_busca = ''
             AND LOWER(nome) = LOWER(?)
           LIMIT 1
         `;
@@ -635,11 +703,10 @@ function salvarClienteAutomaticamente({ nome, numero, barbeiro }) {
             UPDATE clientes
             SET nome = ?,
                 numero = ?,
-                numero_busca = ?,
                 atualizado_em = ?
             WHERE id = ?
           `,
-          [nome, numero, numeroBusca, agora, cliente.id],
+          [nome, numero, agora, cliente.id],
           (erroUpdate) => {
             if (erroUpdate) {
               reject(erroUpdate);
@@ -656,10 +723,10 @@ function salvarClienteAutomaticamente({ nome, numero, barbeiro }) {
       db.run(
         `
           INSERT INTO clientes
-          (nome, numero, numero_busca, barbeiro, criado_em, atualizado_em)
-          VALUES (?, ?, ?, ?, ?, ?)
+          (nome, numero, barbeiro, criado_em, atualizado_em)
+          VALUES (?, ?, ?, ?, ?)
         `,
-        [nome, numero, numeroBusca, barbeiro, agora, agora],
+        [nome, numero, barbeiro, agora, agora],
         function (erroInsert) {
           if (erroInsert) {
             reject(erroInsert);
@@ -2973,39 +3040,89 @@ app.put("/app/agendamentos/:id", (req, res) => {
 
 app.put("/finalizar/:id", (req, res) => {
   const id = Number(req.params.id);
+  const produto = String(req.body?.produto || "").trim();
+  const valorProduto = Number(req.body?.valor_produto || 0);
 
   if (!id) {
-    return res.status(400).json({
-      erro: "Agendamento inválido.",
-    });
+    return res.status(400).json({ erro: "Agendamento inválido." });
   }
 
-  db.run(
+  if (produto && (!Number.isFinite(valorProduto) || valorProduto <= 0)) {
+    return res.status(400).json({ erro: "Informe um valor válido para o produto." });
+  }
+
+  db.get(
     `
-      UPDATE agendamentos
-      SET status = 'Finalizado'
-      WHERE id = ?
-        AND fixo = 0
-        AND barbeiro = ?
+      SELECT id, cliente_app_id, barbeiro, fixo, status
+      FROM agendamentos
+      WHERE id = ? AND barbeiro = ? AND fixo = 0
     `,
     [id, req.usuarioAutenticado],
-    function (erro) {
-      if (erro) {
-        return res.status(500).json({
-          erro: erro.message,
-        });
+    (erroBusca, agendamento) => {
+      if (erroBusca) {
+        console.error(erroBusca);
+        return res.status(500).json({ erro: erroBusca.message });
       }
 
-      if (this.changes === 0) {
-        return res.status(404).json({
-          erro: "Agendamento não encontrado.",
-        });
+      if (!agendamento) {
+        return res.status(404).json({ erro: "Agendamento não encontrado." });
       }
 
-      res.json({
-        sucesso: true,
-        mensagem: "Agendamento finalizado!",
-      });
+      db.run(
+        `UPDATE agendamentos SET status = 'Finalizado' WHERE id = ?`,
+        [id],
+        (erroFinalizar) => {
+          if (erroFinalizar) {
+            console.error(erroFinalizar);
+            return res.status(500).json({ erro: erroFinalizar.message });
+          }
+
+          db.run(
+            `DELETE FROM produtos_vendidos WHERE agendamento_id = ?`,
+            [id],
+            (erroExcluirProduto) => {
+              if (erroExcluirProduto) {
+                console.error(erroExcluirProduto);
+                return res.status(500).json({ erro: "Erro ao atualizar produto vendido." });
+              }
+
+              if (!produto) {
+                return res.json({
+                  sucesso: true,
+                  mensagem: "Agendamento finalizado!",
+                });
+              }
+
+              db.run(
+                `
+                  INSERT INTO produtos_vendidos
+                  (agendamento_id, cliente_app_id, barbeiro, produto, valor, criado_em)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                `,
+                [
+                  id,
+                  agendamento.cliente_app_id || null,
+                  agendamento.barbeiro,
+                  produto,
+                  valorProduto,
+                  Date.now(),
+                ],
+                (erroProduto) => {
+                  if (erroProduto) {
+                    console.error(erroProduto);
+                    return res.status(500).json({ erro: "Agendamento finalizado, mas não foi possível registrar o produto." });
+                  }
+
+                  res.json({
+                    sucesso: true,
+                    mensagem: "Agendamento finalizado e produto registrado!",
+                  });
+                },
+              );
+            },
+          );
+        },
+      );
     },
   );
 });
@@ -3377,8 +3494,229 @@ app.delete("/app/fixos/:id", (req, res) => {
 });
 
 // ======================================================
+// AGENDAMENTOS DE UM DIA ESPECÍFICO
+// ======================================================
+
+app.get("/app/agendamentos-dia/:barbeiro/:dia", (req, res) => {
+  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
+  const dia = String(req.params.dia || "").trim();
+
+  if (!barbeiro || !dia) {
+    return res.status(400).json({ erro: "Barbeiro e data são obrigatórios." });
+  }
+
+  const dataObjeto = criarDataLocal(dia);
+
+  if (Number.isNaN(dataObjeto.getTime())) {
+    return res.status(400).json({ erro: "Data inválida." });
+  }
+
+  const diaSemana = dataObjeto.getDay();
+
+  db.all(
+    `
+      SELECT *
+      FROM agendamentos
+      WHERE barbeiro = ?
+        AND status != 'Cancelado'
+        AND (
+          (fixo = 0 AND dia = ?)
+          OR
+          (fixo = 1 AND dia_semana = ?)
+        )
+      ORDER BY horario
+    `,
+    [barbeiro, dia, diaSemana],
+    (erro, registros) => {
+      if (erro) {
+        console.error("Erro ao carregar agenda do dia:", erro);
+        return res.status(500).json({ erro: "Erro ao carregar agenda do dia." });
+      }
+
+      res.json(
+        registros.map((item) => ({
+          ...item,
+          dia: Number(item.fixo) === 1 ? dia : item.dia,
+        })),
+      );
+    },
+  );
+});
+
+// ======================================================
 // CRM - PREFERÊNCIAS DOS CLIENTES
 // ======================================================
+
+// ======================================================
+// CRM - DETALHES DE UM CLIENTE
+// ======================================================
+
+function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
+  const numeroBusca = normalizarNumero(numero || "");
+
+  const finalizarResposta = (cliente) => {
+    if (!cliente) {
+      return res.status(404).json({ erro: "Cliente não encontrado." });
+    }
+
+    db.all(
+      `
+        SELECT * FROM agendamentos
+        WHERE barbeiro = ?
+          AND fixo = 0
+          AND (
+            (cliente_app_id IS NOT NULL AND cliente_app_id = ?)
+            OR (? <> '' AND REPLACE(REPLACE(REPLACE(REPLACE(numero, '(', ''), ')', ''), '-', ''), ' ', '') = ?)
+            OR LOWER(TRIM(nome)) = LOWER(TRIM(?))
+          )
+        ORDER BY dia DESC, horario DESC
+      `,
+      [barbeiro, cliente.id || 0, numeroBusca, numeroBusca, cliente.nome || ""],
+      (erroAgendamentos, historico) => {
+        if (erroAgendamentos) {
+          console.error(erroAgendamentos);
+          return res.status(500).json({ erro: "Erro ao carregar histórico do cliente." });
+        }
+
+        const finalizados = historico.filter((a) => a.status === "Finalizado");
+        const ids = finalizados.map((a) => a.id).filter(Boolean);
+
+        const carregarProdutos = (callback) => {
+          if (!ids.length) return callback(null, []);
+          const placeholders = ids.map(() => '?').join(',');
+          db.all(
+            `SELECT * FROM produtos_vendidos WHERE agendamento_id IN (${placeholders}) ORDER BY criado_em DESC`,
+            ids,
+            callback,
+          );
+        };
+
+        carregarProdutos((erroProdutos, produtos) => {
+          if (erroProdutos) {
+            console.error(erroProdutos);
+            return res.status(500).json({ erro: "Erro ao carregar produtos vendidos." });
+          }
+
+          const carregarAvaliacoes = (callback) => {
+            if (!ids.length) return callback(null, []);
+            const placeholders = ids.map(() => '?').join(',');
+            db.all(
+              `
+                SELECT av.*, a.servico, a.dia, a.horario
+                FROM avaliacoes av
+                LEFT JOIN agendamentos a ON a.id = av.agendamento_id
+                WHERE av.agendamento_id IN (${placeholders})
+                ORDER BY av.criado_em DESC
+              `,
+              ids,
+              callback,
+            );
+          };
+
+          carregarAvaliacoes((erroAvaliacoes, avaliacoes) => {
+            if (erroAvaliacoes) {
+              console.error(erroAvaliacoes);
+              return res.status(500).json({ erro: "Erro ao carregar avaliações." });
+            }
+
+            const totalServicos = finalizados.reduce((s, a) => s + Number(a.valor || 0), 0);
+            const totalProdutos = produtos.reduce((s, p) => s + Number(p.valor || 0), 0);
+            const totalGasto = totalServicos + totalProdutos;
+            const datas = finalizados.map((a) => String(a.dia || "")).filter(Boolean).sort();
+            const ultimo = datas.length ? datas[datas.length - 1] : null;
+            const agora = new Date();
+            const diasSemVisita = ultimo ? Math.max(0, Math.floor((agora - new Date(`${ultimo}T00:00:00`)) / 86400000)) : 0;
+            const somaAvaliacoes = avaliacoes.reduce((s, a) => s + Number(a.estrelas || 0), 0);
+
+            res.json({
+              cliente,
+              total_atendimentos: finalizados.length,
+              total_servicos: totalServicos,
+              total_produtos: totalProdutos,
+              quantidade_produtos: produtos.length,
+              total_gasto: totalGasto,
+              ultimo_atendimento: ultimo,
+              dias_sem_visita: diasSemVisita,
+              preferencia_corte: cliente.preferencia_corte || "Não informado",
+              preferencia_fade: cliente.preferencia_fade || "Não informado",
+              preferencia_barba: cliente.preferencia_barba || "Não informado",
+              observacoes_corte: cliente.observacoes_corte || "",
+              media_avaliacoes: avaliacoes.length ? Number((somaAvaliacoes / avaliacoes.length).toFixed(1)) : 0,
+              total_avaliacoes: avaliacoes.length,
+              avaliacoes,
+              produtos_vendidos: produtos,
+              historico,
+            });
+          });
+        });
+      },
+    );
+  };
+
+  const buscarPorId = Number(clienteId || 0);
+  if (buscarPorId) {
+    db.get(
+      `SELECT id, nome, numero, email, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte FROM clientes_app WHERE id = ?`,
+      [buscarPorId],
+      (erro, clienteApp) => {
+        if (erro) {
+          console.error(erro);
+          return res.status(500).json({ erro: "Erro ao localizar cliente." });
+        }
+        if (clienteApp) return finalizarResposta(clienteApp);
+        buscarPorNumero();
+      },
+    );
+  } else {
+    buscarPorNumero();
+  }
+
+  function buscarPorNumero() {
+    if (!numeroBusca) return finalizarResposta(null);
+
+    db.get(
+      `SELECT id, nome, numero, email, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte FROM clientes_app WHERE REPLACE(REPLACE(REPLACE(REPLACE(numero, '(', ''), ')', ''), '-', ''), ' ', '') = ? LIMIT 1`,
+      [numeroBusca],
+      (erro, clienteApp) => {
+        if (erro) {
+          console.error(erro);
+          return res.status(500).json({ erro: "Erro ao localizar cliente." });
+        }
+        if (clienteApp) return finalizarResposta(clienteApp);
+
+        db.get(
+          `SELECT id, nome, numero, '' AS email, 'Não informado' AS preferencia_corte, 'Não informado' AS preferencia_fade, 'Não informado' AS preferencia_barba, '' AS observacoes_corte FROM clientes WHERE barbeiro = ? AND REPLACE(REPLACE(REPLACE(REPLACE(numero, '(', ''), ')', ''), '-', ''), ' ', '') = ? LIMIT 1`,
+          [barbeiro, numeroBusca],
+          (erroManual, clienteManual) => {
+            if (erroManual) {
+              console.error(erroManual);
+              return res.status(500).json({ erro: "Erro ao localizar cliente." });
+            }
+            finalizarResposta(clienteManual);
+          },
+        );
+      },
+    );
+  }
+}
+
+app.get("/app/crm/:barbeiro/telefone/:numero", (req, res) => {
+  carregarDetalhesCRM(
+    normalizarBarbeiro(req.params.barbeiro),
+    0,
+    req.params.numero,
+    res,
+  );
+});
+
+app.get("/app/crm/:barbeiro/:clienteId", (req, res) => {
+  carregarDetalhesCRM(
+    normalizarBarbeiro(req.params.barbeiro),
+    req.params.clienteId,
+    "",
+    res,
+  );
+});
 
 app.get("/app/crm/:barbeiro", (req, res) => {
   const barbeiro = normalizarBarbeiro(req.params.barbeiro);
@@ -3441,138 +3779,6 @@ app.get("/app/crm/:barbeiro", (req, res) => {
       );
     },
   );
-});
-
-// ======================================================
-// CRM - DETALHES DE UM CLIENTE
-// ======================================================
-
-function carregarDetalhesCRM(req, res, clienteId, telefoneBusca) {
-  const barbeiro = normalizarBarbeiro(req.params.barbeiro);
-  const numeroNormalizado = normalizarNumero(telefoneBusca);
-
-  db.all(
-    `SELECT * FROM clientes WHERE barbeiro = ? ORDER BY nome COLLATE NOCASE`,
-    [barbeiro],
-    (erroClientes, clientes) => {
-      if (erroClientes) {
-        console.error(erroClientes);
-        return res.status(500).json({ erro: "Erro ao carregar clientes." });
-      }
-
-      db.all(
-        `SELECT id, nome, numero, preferencia_corte, preferencia_fade, preferencia_barba, observacoes_corte FROM clientes_app`,
-        [],
-        (erroContas, contas) => {
-          if (erroContas) {
-            console.error(erroContas);
-            return res.status(500).json({ erro: "Erro ao carregar contas dos clientes." });
-          }
-
-          db.all(
-            `SELECT * FROM agendamentos WHERE barbeiro = ? AND fixo = 0 ORDER BY dia DESC, horario DESC`,
-            [barbeiro],
-            (erroAgendamentos, agendamentos) => {
-              if (erroAgendamentos) {
-                console.error(erroAgendamentos);
-                return res.status(500).json({ erro: "Erro ao carregar histórico." });
-              }
-
-              let cliente = null;
-              let conta = null;
-
-              if (Number(clienteId) > 0) {
-                conta = contas.find((item) => Number(item.id) === Number(clienteId)) || null;
-                if (conta) {
-                  cliente = clientes.find((item) => normalizarNumero(item.numero) === normalizarNumero(conta.numero)) || null;
-                  if (!cliente) {
-                    cliente = {
-                      id: null,
-                      nome: conta.nome,
-                      numero: conta.numero,
-                      barbeiro,
-                    };
-                  }
-                }
-              }
-
-              if (!cliente && numeroNormalizado) {
-                cliente = clientes.find((item) => normalizarNumero(item.numero) === numeroNormalizado) || null;
-                conta = contas.find((item) => normalizarNumero(item.numero) === numeroNormalizado) || null;
-              }
-
-              if (!cliente) {
-                return res.status(404).json({ erro: "Cliente não encontrado." });
-              }
-
-              const historico = agendamentos.filter((item) => mesmoCliente(cliente, item));
-              const finalizados = historico.filter((item) => item.status === "Finalizado");
-              const ultimo = finalizados.find((item) => String(item.dia || "").trim() !== "") || null;
-
-              const totalServicos = finalizados.reduce((soma, item) => soma + (Number(item.valor) || 0), 0);
-
-              db.all(
-                `SELECT av.id, av.agendamento_id, av.estrelas, av.comentario, av.criado_em,
-                        a.servico, a.dia, a.horario
-                 FROM avaliacoes av
-                 LEFT JOIN agendamentos a ON a.id = av.agendamento_id
-                 WHERE av.barbeiro = ? AND av.cliente_app_id = ?
-                 ORDER BY av.criado_em DESC`,
-                [barbeiro, conta?.id || -1],
-                (erroAvaliacoes, avaliacoes) => {
-                  if (erroAvaliacoes) {
-                    console.error(erroAvaliacoes);
-                    return res.status(500).json({ erro: "Erro ao carregar avaliações." });
-                  }
-
-                  const media = avaliacoes.length
-                    ? Number((avaliacoes.reduce((s, item) => s + Number(item.estrelas || 0), 0) / avaliacoes.length).toFixed(1))
-                    : 0;
-
-                  const resposta = {
-                    cliente: {
-                      ...cliente,
-                      nome: conta?.nome || cliente.nome,
-                      numero: conta?.numero || cliente.numero,
-                      cliente_app_id: conta?.id || null,
-                    },
-                    nome: conta?.nome || cliente.nome,
-                    numero: conta?.numero || cliente.numero,
-                    total_atendimentos: finalizados.length,
-                    total_gasto: totalServicos,
-                    total_servicos: totalServicos,
-                    total_produtos: 0,
-                    quantidade_produtos: 0,
-                    ultimo_atendimento: ultimo?.dia || null,
-                    dias_sem_visita: ultimo?.dia ? Math.max(0, Math.floor((Date.now() - new Date(`${ultimo.dia}T12:00:00`).getTime()) / 86400000)) : 0,
-                    preferencia_corte: conta?.preferencia_corte || "Não informado",
-                    preferencia_fade: conta?.preferencia_fade || "Não informado",
-                    preferencia_barba: conta?.preferencia_barba || "Não informado",
-                    observacoes_corte: conta?.observacoes_corte || "",
-                    media_avaliacoes: media,
-                    total_avaliacoes: avaliacoes.length,
-                    avaliacoes,
-                    produtos_vendidos: [],
-                    historico,
-                  };
-
-                  return res.json(resposta);
-                },
-              );
-            },
-          );
-        },
-      );
-    },
-  );
-}
-
-app.get("/app/crm/:barbeiro/telefone/:numero", (req, res) => {
-  carregarDetalhesCRM(req, res, 0, req.params.numero);
-});
-
-app.get("/app/crm/:barbeiro/:clienteId", (req, res) => {
-  carregarDetalhesCRM(req, res, req.params.clienteId, "");
 });
 
 // ======================================================
@@ -3731,7 +3937,6 @@ app.put("/app/clientes/:id", (req, res) => {
       UPDATE clientes
       SET nome = ?,
           numero = ?,
-          numero_busca = ?,
           atualizado_em = ?
       WHERE id = ?
         AND barbeiro = ?
@@ -3739,7 +3944,6 @@ app.put("/app/clientes/:id", (req, res) => {
     [
       nome,
       numero,
-      numeroBusca,
       Date.now(),
       id,
       req.usuarioAutenticado,
