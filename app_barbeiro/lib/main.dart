@@ -13,7 +13,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String api = 'http://10.133.126.19:3000';
+const String api = 'http://10.133.126.26:3000';
 
 String authToken = '';
 
