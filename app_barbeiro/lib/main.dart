@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +14,46 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String api = 'http://10.133.126.26:3000';
+/// Formata telefones nacionais conforme a digitação, sem pacote externo.
+/// Aceita 10 dígitos (fixo) ou 11 dígitos (celular).
+class TelefoneBrasileiroFormatter extends TextInputFormatter {
+  const TelefoneBrasileiroFormatter();
+
+  static String formatar(String entrada) {
+    final digitos = entrada.replaceAll(RegExp(r'\D'), '');
+    final numeros = digitos.length > 11 ? digitos.substring(0, 11) : digitos;
+    if (numeros.isEmpty) return '';
+    if (numeros.length <= 2) return '($numeros';
+    final ddd = numeros.substring(0, 2);
+    final resto = numeros.substring(2);
+    if (resto.length <= 4) return '($ddd) $resto';
+    final tamanhoPrefixo = numeros.length > 10 ? 5 : 4;
+    if (resto.length <= tamanhoPrefixo) return '($ddd) $resto';
+    return '($ddd) ${resto.substring(0, tamanhoPrefixo)}-${resto.substring(tamanhoPrefixo)}';
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final antes = newValue.selection.baseOffset.clamp(0, newValue.text.length);
+    final qtdDigitosAntes = newValue.text.substring(0, antes).replaceAll(RegExp(r'\D'), '').length;
+    final formatado = formatar(newValue.text);
+    var cursor = 0;
+    var encontrados = 0;
+    while (cursor < formatado.length && encontrados < qtdDigitosAntes) {
+      if (RegExp(r'\d').hasMatch(formatado[cursor])) encontrados++;
+      cursor++;
+    }
+    if (qtdDigitosAntes > 0 && cursor < formatado.length &&
+        (formatado[cursor] == ')' || formatado[cursor] == ' ' || formatado[cursor] == '-')) {
+      while (cursor < formatado.length && !RegExp(r'\d').hasMatch(formatado[cursor])) {
+        cursor++;
+      }
+    }
+    return TextEditingValue(text: formatado, selection: TextSelection.collapsed(offset: cursor));
+  }
+}
+
+const String api = 'http://10.133.126.27:3000';
 
 String authToken = '';
 
@@ -22,6 +62,153 @@ int? clienteIdLogado;
 String clienteNomeLogado = '';
 String clienteNumeroLogado = '';
 String clienteEmailLogado = '';
+
+// Mantém somente o token e os dados necessários à retomada da sessão.
+// O token nunca é salvo em SharedPreferences ou em texto simples.
+const FlutterSecureStorage _sessaoStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
+
+Future<void> salvarSessaoCliente() async {
+  await _sessaoStorage.write(key: 'tipo_conta', value: 'cliente');
+  await _sessaoStorage.write(key: 'cliente_token', value: clienteAuthToken);
+  await _sessaoStorage.write(key: 'cliente_id', value: clienteIdLogado?.toString() ?? '');
+  await _sessaoStorage.write(key: 'cliente_nome', value: clienteNomeLogado);
+  await _sessaoStorage.write(key: 'cliente_numero', value: clienteNumeroLogado);
+  await _sessaoStorage.write(key: 'cliente_email', value: clienteEmailLogado);
+  await _sessaoStorage.delete(key: 'barbeiro_token');
+  await _sessaoStorage.delete(key: 'barbeiro_id');
+  await _sessaoStorage.delete(key: 'barbeiro_nome');
+}
+
+Future<void> salvarSessaoBarbeiro(String barbeiro, String nome) async {
+  await _sessaoStorage.write(key: 'tipo_conta', value: 'barbeiro');
+  await _sessaoStorage.write(key: 'barbeiro_token', value: authToken);
+  await _sessaoStorage.write(key: 'barbeiro_id', value: barbeiro);
+  await _sessaoStorage.write(key: 'barbeiro_nome', value: nome);
+  for (final chave in ['cliente_token', 'cliente_id', 'cliente_nome', 'cliente_numero', 'cliente_email']) {
+    await _sessaoStorage.delete(key: chave);
+  }
+}
+
+Future<void> limparSessaoSalva() async {
+  for (final chave in [
+    'tipo_conta', 'cliente_token', 'cliente_id', 'cliente_nome',
+    'cliente_numero', 'cliente_email', 'barbeiro_token',
+    'barbeiro_id', 'barbeiro_nome',
+  ]) {
+    await _sessaoStorage.delete(key: chave);
+  }
+}
+
+void limparSessaoEmMemoria() {
+  authToken = '';
+  clienteAuthToken = '';
+  clienteIdLogado = null;
+  clienteNomeLogado = '';
+  clienteNumeroLogado = '';
+  clienteEmailLogado = '';
+}
+
+// A API responde se o token salvo ainda é aceito. Tokens expirados não são reutilizados.
+class TelaInicialComSessao extends StatefulWidget {
+  const TelaInicialComSessao({super.key});
+
+  @override
+  State<TelaInicialComSessao> createState() => _TelaInicialComSessaoState();
+}
+
+class _TelaInicialComSessaoState extends State<TelaInicialComSessao> {
+  Widget? destino;
+  String? erroConexao;
+
+  @override
+  void initState() {
+    super.initState();
+    restaurar();
+  }
+
+  Future<void> restaurar() async {
+    if (mounted) setState(() { destino = null; erroConexao = null; });
+    try {
+      final tipo = await _sessaoStorage.read(key: 'tipo_conta');
+      if (tipo == 'cliente') {
+        final token = await _sessaoStorage.read(key: 'cliente_token') ?? '';
+        if (token.isEmpty) throw const FormatException('Sessão incompleta');
+        clienteAuthToken = token;
+        final resposta = await http.get(
+          Uri.parse('$api/cliente/me'), headers: headersCliente(),
+        ).timeout(const Duration(seconds: 12));
+        if (resposta.statusCode == 401 || resposta.statusCode == 403) {
+          await limparSessaoSalva();
+          limparSessaoEmMemoria();
+        } else if (resposta.statusCode == 200) {
+          clienteIdLogado = int.tryParse(await _sessaoStorage.read(key: 'cliente_id') ?? '');
+          clienteNomeLogado = await _sessaoStorage.read(key: 'cliente_nome') ?? 'Cliente';
+          clienteNumeroLogado = await _sessaoStorage.read(key: 'cliente_numero') ?? '';
+          clienteEmailLogado = await _sessaoStorage.read(key: 'cliente_email') ?? '';
+          if (mounted) setState(() => destino = ClienteInicioPage(
+            nome: clienteNomeLogado, email: clienteEmailLogado, numero: clienteNumeroLogado,
+          ));
+          return;
+        } else {
+          throw StateError('Servidor indisponível (${resposta.statusCode})');
+        }
+      } else if (tipo == 'barbeiro') {
+        final token = await _sessaoStorage.read(key: 'barbeiro_token') ?? '';
+        final barbeiro = await _sessaoStorage.read(key: 'barbeiro_id') ?? '';
+        final nome = await _sessaoStorage.read(key: 'barbeiro_nome') ?? '';
+        if (token.isEmpty || barbeiro.isEmpty) throw const FormatException('Sessão incompleta');
+        authToken = token;
+        final resposta = await http.get(
+          Uri.parse('$api/app/perfil/${Uri.encodeComponent(barbeiro)}'),
+          headers: headersAutenticados(),
+        ).timeout(const Duration(seconds: 12));
+        if (resposta.statusCode == 401 || resposta.statusCode == 403) {
+          await limparSessaoSalva();
+          limparSessaoEmMemoria();
+        } else if (resposta.statusCode == 200) {
+          if (mounted) setState(() => destino = PainelBarbeiro(barbeiro: barbeiro, nome: nome));
+          return;
+        } else {
+          throw StateError('Servidor indisponível (${resposta.statusCode})');
+        }
+      }
+      if (mounted) setState(() => destino = const ClienteLoginPage());
+    } on FormatException {
+      await limparSessaoSalva();
+      limparSessaoEmMemoria();
+      if (mounted) setState(() => destino = const ClienteLoginPage());
+    } catch (_) {
+      // Sem internet: não apaga credenciais salvas nem autentica sem validar.
+      if (mounted) setState(() => erroConexao =
+        'Não foi possível verificar sua sessão. Confira a conexão e tente novamente.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (destino != null) return destino!;
+    return Scaffold(body: Center(child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (erroConexao == null) const CircularProgressIndicator(color: corAzul),
+        const SizedBox(height: 20),
+        Text(erroConexao ?? 'Verificando sua sessão...', textAlign: TextAlign.center),
+        if (erroConexao != null) ...[
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: restaurar, child: const Text('TENTAR NOVAMENTE')),
+          TextButton(onPressed: () async {
+            await limparSessaoSalva();
+            limparSessaoEmMemoria();
+            if (mounted) setState(() { erroConexao = null; destino = const ClienteLoginPage(); });
+          }, child: const Text('ENTRAR COM OUTRA CONTA')),
+        ],
+      ]),
+    )));
+  }
+}
+
 
 Map<String, String> headersAutenticados({bool json = false}) {
   final headers = <String, String>{};
@@ -179,7 +366,7 @@ class GBarberClubApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ClienteLoginPage(),
+      home: const TelaInicialComSessao(),
     );
   }
 }
@@ -247,6 +434,51 @@ ButtonStyle botaoPrincipal() {
   );
 }
 
+// Confirmação compartilhada pelas áreas do cliente e do barbeiro.
+Future<bool> confirmarSaida(BuildContext context) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: corCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Sair da conta?'),
+          content: const Text('Deseja realmente sair e voltar para a tela de login?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCELAR'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('SIM, SAIR'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ) ?? false;
+}
+
+Future<void> sairDaConta(BuildContext context, {required bool cliente}) async {
+  if (!await confirmarSaida(context) || !context.mounted) return;
+  try {
+    await limparSessaoSalva();
+  } catch (_) {
+    if (context.mounted) mostrarMensagem(context, 'Não foi possível encerrar a sessão. Tente novamente.', erro: true);
+    return;
+  }
+  limparSessaoEmMemoria();
+  if (!context.mounted) return;
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => cliente ? const ClienteLoginPage() : const LoginPage()),
+    (_) => false,
+  );
+}
+
 // ======================================================
 // LOGIN
 // ======================================================
@@ -300,6 +532,9 @@ class _LoginPageState extends State<LoginPage> {
           );
           return;
         }
+
+        await salvarSessaoBarbeiro(dados['barbeiro'].toString(), dados['nome'].toString());
+        if (!mounted) return;
 
         Navigator.pushReplacement(
           context,
@@ -554,6 +789,13 @@ class _ClienteLoginPageState extends State<ClienteLoginPage> {
         clienteNomeLogado = dados['nome']?.toString() ?? 'Cliente';
         clienteNumeroLogado = dados['numero']?.toString() ?? '';
         clienteEmailLogado = dados['email']?.toString() ?? email;
+
+        if (clienteAuthToken.isEmpty) {
+          mostrarMensagem(context, 'O servidor não retornou um token de acesso.', erro: true);
+          return;
+        }
+        await salvarSessaoCliente();
+        if (!mounted) return;
 
         Navigator.pushReplacement(
           context,
@@ -840,6 +1082,7 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
                   TextField(
                     controller: telefoneController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: const [TelefoneBrasileiroFormatter()],
                     decoration: const InputDecoration(
                       labelText: 'Telefone',
                       prefixIcon: Icon(Icons.phone_outlined),
@@ -913,7 +1156,185 @@ class _ClienteCadastroPageState extends State<ClienteCadastroPage> {
   }
 }
 
-class ClienteInicioPage extends StatelessWidget {
+
+// Assinatura VIP: a ativação e a liberação dos 4 cortes dependem
+// exclusivamente do backend e de pagamentos confirmados pelo provedor.
+const double precoAssinaturaVip = 96.0;
+const int limiteCortesVip = 4;
+
+String _moedaVip(dynamic valor) {
+  final n = double.tryParse('$valor') ?? 0;
+  return 'R\$ ${n.toStringAsFixed(2).replaceAll('.', ',')}';
+}
+
+class AssinaturaClientePage extends StatefulWidget {
+  const AssinaturaClientePage({super.key});
+  @override
+  State<AssinaturaClientePage> createState() => _AssinaturaClientePageState();
+}
+
+class _AssinaturaClientePageState extends State<AssinaturaClientePage> {
+  bool carregando = true;
+  bool iniciando = false;
+  String? erro;
+  Map<String, dynamic>? assinatura;
+
+  @override
+  void initState() {
+    super.initState();
+    atualizar();
+  }
+
+  Future<void> atualizar() async {
+    setState(() { carregando = true; erro = null; });
+    try {
+      final r = await http.get(Uri.parse('$api/cliente/assinatura'), headers: headersCliente()).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) throw Exception('Erro ${r.statusCode}: ${r.body}');
+      final data = jsonDecode(r.body);
+      if (data is! Map) throw const FormatException('Formato inválido');
+      if (mounted) setState(() => assinatura = Map<String, dynamic>.from(data));
+    } catch (_) {
+      if (mounted) setState(() => erro = 'Não foi possível consultar a assinatura. Verifique a conexão e a API.');
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
+  Future<void> assinar() async {
+    if (iniciando) return;
+    setState(() => iniciando = true);
+    try {
+      final r = await http.post(Uri.parse('$api/cliente/assinatura/checkout'), headers: headersCliente(json: true), body: jsonEncode({'plano': 'vip_4_cortes'})).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode != 200 && r.statusCode != 201) throw Exception('Checkout indisponível');
+      if (data is! Map) throw const FormatException('Resposta inválida');
+      final url = (data['checkout_url'] ?? '').toString();
+      final uri = Uri.tryParse(url);
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) throw const FormatException('Link de pagamento inválido');
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) throw Exception('Falha ao abrir checkout');
+      // Nunca marcar como ativa apenas porque o link foi aberto.
+    } catch (_) {
+      if (mounted) mostrarMensagem(context, 'Não foi possível abrir o pagamento. Confira a integração do servidor.', erro: true);
+    } finally {
+      if (mounted) setState(() => iniciando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (assinatura?['status'] ?? 'inativa').toString().toLowerCase();
+    final ativa = status == 'ativa';
+    final usados = numeroInt(assinatura?['cortes_usados']).clamp(0, limiteCortesVip);
+    final disponiveis = (limiteCortesVip - usados).clamp(0, limiteCortesVip);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Clube VIP'), actions: [IconButton(onPressed: carregando ? null : atualizar, icon: const Icon(Icons.refresh))]),
+      body: RefreshIndicator(onRefresh: atualizar, child: ListView(padding: const EdgeInsets.all(20), children: [
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(color: corCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: corAzul.withOpacity(.5))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Row(children: [Icon(Icons.workspace_premium, color: corAzul), SizedBox(width: 10), Text('GBARBER CLUB VIP', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: corAzul))]),
+            const SizedBox(height: 20),
+            const Text('R\$ 120,00', style: TextStyle(color: corTextoSecundario, decoration: TextDecoration.lineThrough, fontSize: 16)),
+            const Text('R\$ 96,00 / mês', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            const Text('4 cortes mensais por R\$ 24,00 cada • 20% de economia', style: TextStyle(color: corTextoSecundario)),
+            const SizedBox(height: 16),
+            const Text('Renovação mensal automática. O plano inclui apenas o serviço Corte; Corte + Barba não está incluso.'),
+            const SizedBox(height: 10),
+            const Text('Créditos não utilizados expiram ao fim do ciclo. Confira as regras de cancelamento antes de contratar.', style: TextStyle(fontSize: 12, color: corTextoSecundario)),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        if (carregando) const Center(child: CircularProgressIndicator(color: corAzul))
+        else if (erro != null) ...[
+          Text(erro!, style: const TextStyle(color: Colors.redAccent)),
+          TextButton(onPressed: atualizar, child: const Text('TENTAR NOVAMENTE')),
+        ] else if (ativa) ...[
+          Card(color: corCard, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Sua assinatura está ativa', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Cortes disponíveis neste ciclo: $disponiveis de $limiteCortesVip', style: const TextStyle(fontSize: 17)),
+            const SizedBox(height: 8),
+            Text('Próxima renovação: ${assinatura?['proxima_renovacao'] ?? 'consulte o contrato'}'),
+          ]))),
+        ] else ...[
+          Text('Situação atual: ${status == 'inativa' ? 'Sem assinatura ativa' : status}', style: const TextStyle(color: corTextoSecundario)),
+          const SizedBox(height: 14),
+          SizedBox(height: 54, child: ElevatedButton.icon(onPressed: iniciando ? null : assinar, style: botaoPrincipal(), icon: const Icon(Icons.credit_card), label: Text(iniciando ? 'ABRINDO PAGAMENTO...' : 'ASSINAR POR R\$ 96,00/MÊS'))),
+        ],
+        const SizedBox(height: 14),
+        const Text('A assinatura só será ativada após a confirmação do pagamento pelo servidor.', style: TextStyle(color: corTextoSecundario, fontSize: 12)),
+      ])),
+    );
+  }
+}
+
+class AssinaturasBarbeiroPage extends StatefulWidget {
+  const AssinaturasBarbeiroPage({super.key});
+  @override
+  State<AssinaturasBarbeiroPage> createState() => _AssinaturasBarbeiroPageState();
+}
+
+class _AssinaturasBarbeiroPageState extends State<AssinaturasBarbeiroPage> {
+  bool carregando = true;
+  String? erro;
+  Map<String, dynamic> dados = {};
+
+  @override
+  void initState() { super.initState(); atualizar(); }
+  Future<void> atualizar() async {
+    setState(() { carregando = true; erro = null; });
+    try {
+      final r = await http.get(Uri.parse('$api/app/assinaturas'), headers: headersAutenticados()).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) throw Exception('Erro HTTP ${r.statusCode}');
+      final json = jsonDecode(r.body);
+      if (json is! Map) throw const FormatException('Resposta inválida');
+      if (mounted) setState(() => dados = Map<String, dynamic>.from(json));
+    } catch (_) {
+      if (mounted) setState(() => erro = 'Não foi possível carregar o painel. Confira a API ou suas permissões.');
+    } finally { if (mounted) setState(() => carregando = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lista = dados['assinantes'] is List ? dados['assinantes'] as List : <dynamic>[];
+    return Scaffold(
+      appBar: AppBar(title: const Text('Assinaturas VIP'), actions: [IconButton(onPressed: carregando ? null : atualizar, icon: const Icon(Icons.refresh))]),
+      body: RefreshIndicator(onRefresh: atualizar, child: ListView(padding: const EdgeInsets.all(16), children: [
+        if (carregando) const Padding(padding: EdgeInsets.all(90), child: Center(child: CircularProgressIndicator(color: corAzul)))
+        else if (erro != null) ...[
+          Text(erro!, style: const TextStyle(color: Colors.redAccent)),
+          TextButton(onPressed: atualizar, child: const Text('TENTAR NOVAMENTE')),
+        ] else ...[
+          Card(color: corCard, child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('RESUMO DE ASSINATURAS', style: TextStyle(color: corAzul, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 14),
+            Text('Assinantes ativos: ${numeroInt(dados['ativos'])}', style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text('Receita efetivamente recebida no mês: ${_moedaVip(dados['receita_recebida_mes'])}', style: const TextStyle(fontSize: 17)),
+            const SizedBox(height: 8),
+            Text('Receita mensal contratada: ${_moedaVip(dados['receita_recorrente_prevista'])}', style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 10),
+            const Text('Receita não é lucro: custos, taxas, impostos e estornos não estão descontados.', style: TextStyle(color: corTextoSecundario, fontSize: 12)),
+          ]))),
+          const SizedBox(height: 18),
+          const Text('Assinantes', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          if (lista.isEmpty) const Text('Nenhum assinante encontrado.', style: TextStyle(color: corTextoSecundario)),
+          ...lista.whereType<Map>().map((item) => Card(color: corCard, child: ListTile(
+            leading: const Icon(Icons.workspace_premium, color: corAzul),
+            title: Text('${item['nome'] ?? 'Cliente'}'),
+            subtitle: Text('Status: ${item['status'] ?? '-'} • Cortes utilizados: ${item['cortes_usados'] ?? 0}/4\nRenovação: ${item['proxima_renovacao'] ?? '-'}'),
+            isThreeLine: true,
+          ))),
+        ],
+      ])),
+    );
+  }
+}
+
+class ClienteInicioPage extends StatefulWidget {
   final String nome;
   final String email;
   final String numero;
@@ -925,34 +1346,125 @@ class ClienteInicioPage extends StatelessWidget {
     required this.numero,
   });
 
+  @override
+  State<ClienteInicioPage> createState() => _ClienteInicioPageState();
+}
+
+class _ClienteInicioPageState extends State<ClienteInicioPage> {
+  Map<String, dynamic>? proximoAgendamento;
+  bool carregandoProximo = true;
+  String? erroProximo;
+
+  @override
+  void initState() {
+    super.initState();
+    carregarProximoAgendamento();
+  }
+
+  Future<void> carregarProximoAgendamento() async {
+    if (mounted) setState(() { carregandoProximo = true; erroProximo = null; });
+    try {
+      final resposta = await http.get(
+        Uri.parse('$api/cliente/agendamentos'),
+        headers: headersCliente(),
+      );
+      if (resposta.statusCode != 200) throw Exception('Erro HTTP ${resposta.statusCode}');
+      final dados = jsonDecode(resposta.body);
+      if (dados is! List) throw const FormatException('Lista inválida');
+      final agora = DateTime.now();
+      final validos = <MapEntry<DateTime, Map<String, dynamic>>>[];
+      for (final item in dados) {
+        if (item is! Map) continue;
+        final ag = Map<String, dynamic>.from(item);
+        final status = (ag['status'] ?? '').toString().trim().toLowerCase();
+        if (status == 'cancelado' || status == 'finalizado') continue;
+        final dia = (ag['dia'] ?? '').toString();
+        final hora = (ag['horario'] ?? '').toString().trim();
+        final partes = hora.split(':');
+        final data = DateTime.tryParse(dia.length >= 10 ? dia.substring(0, 10) : dia);
+        if (data == null || partes.length < 2) continue;
+        final h = int.tryParse(partes[0]);
+        final m = int.tryParse(partes[1]);
+        if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) continue;
+        final quando = DateTime(data.year, data.month, data.day, h, m);
+        if (!quando.isBefore(agora)) validos.add(MapEntry(quando, ag));
+      }
+      validos.sort((a, b) => a.key.compareTo(b.key));
+      if (mounted) setState(() {
+        proximoAgendamento = validos.isEmpty ? null : validos.first.value;
+        carregandoProximo = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() {
+        erroProximo = 'Não foi possível carregar seu próximo horário.';
+        carregandoProximo = false;
+      });
+    }
+  }
+
   Future<void> abrirPagina(BuildContext context, Widget page) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => page),
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) await carregarProximoAgendamento();
+  }
+
+  Widget cardProximoAgendamento() {
+    final ag = proximoAgendamento;
+    final dia = (ag?['dia'] ?? '').toString();
+    final partes = dia.length >= 10 ? dia.substring(0, 10).split('-') : <String>[];
+    final dataFormatada = partes.length == 3 ? '${partes[2]}/${partes[1]}/${partes[0]}' : dia;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: corCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: corAzul.withOpacity(.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [
+          Icon(Icons.event_available_outlined, color: corAzul),
+          SizedBox(width: 10),
+          Text('PRÓXIMO AGENDAMENTO', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: corAzul)),
+        ]),
+        const SizedBox(height: 13),
+        if (carregandoProximo)
+          const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: corAzul)))
+        else if (erroProximo != null)
+          Text(erroProximo!, style: const TextStyle(color: corTextoSecundario))
+        else if (ag == null)
+          const Text('Você ainda não tem horários futuros agendados.', style: TextStyle(color: corTextoSecundario))
+        else ...[
+          Text('$dataFormatada às ${ag['horario'] ?? ''}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          Text('Serviço: ${ag['servico'] ?? 'Não informado'}'),
+          const SizedBox(height: 5),
+          Text('Barbeiro: ${ag['barbeiro'] ?? 'Não informado'}'),
+          const SizedBox(height: 5),
+          Text('Status: ${ag['status'] ?? 'Confirmado'}', style: const TextStyle(color: corAzul)),
+        ],
+        const SizedBox(height: 12),
+        Align(alignment: Alignment.centerRight, child: TextButton.icon(
+          onPressed: () => abrirPagina(context, const ClienteAgendamentosPage()),
+          icon: const Icon(Icons.arrow_forward),
+          label: const Text('VER AGENDAMENTOS'),
+        )),
+      ]),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) sairDaConta(context, cliente: true);
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Área do Cliente'),
         actions: [
           IconButton(
             tooltip: 'Sair',
-            onPressed: () {
-              clienteAuthToken = '';
-              clienteIdLogado = null;
-              clienteNomeLogado = '';
-              clienteNumeroLogado = '';
-              clienteEmailLogado = '';
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                (_) => false,
-              );
-            },
+            onPressed: () => sairDaConta(context, cliente: true),
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -988,7 +1500,7 @@ class ClienteInicioPage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Olá, $nome 👋',
+                              'Olá, ${widget.nome} 👋',
                               style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
@@ -996,7 +1508,7 @@ class ClienteInicioPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              email,
+                              widget.email,
                               style: const TextStyle(color: corTextoSecundario),
                             ),
                           ],
@@ -1012,7 +1524,7 @@ class ClienteInicioPage extends StatelessWidget {
                       onPressed: () async {
                         await abrirPagina(
                           context,
-                          ClienteAgendamentoPage(nome: nome, numero: numero),
+                          ClienteAgendamentoPage(nome: widget.nome, numero: widget.numero),
                         );
                       },
                       style: botaoPrincipal(),
@@ -1026,7 +1538,17 @@ class ClienteInicioPage extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            cardProximoAgendamento(),
             const SizedBox(height: 18),
+            const SizedBox(height: 12),
+            _clienteMenuCard(
+              context,
+              Icons.workspace_premium_outlined,
+              'Clube VIP • 4 cortes por mês',
+              'R\$ 96,00/mês — economize R\$ 24,00',
+              () => abrirPagina(context, const AssinaturaClientePage()),
+            ),
             _clienteMenuCard(
               context,
               Icons.calendar_month_outlined,
@@ -1078,6 +1600,7 @@ class ClienteInicioPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -2131,7 +2654,7 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
   void initState() {
     super.initState();
     nomeController = TextEditingController(text: clienteNomeLogado);
-    numeroController = TextEditingController(text: clienteNumeroLogado);
+    numeroController = TextEditingController(text: TelefoneBrasileiroFormatter.formatar(clienteNumeroLogado));
     emailController = TextEditingController(text: clienteEmailLogado);
     observacoesController = TextEditingController();
     carregarPreferencias();
@@ -2288,6 +2811,7 @@ class _ClientePerfilPageState extends State<ClientePerfilPage> {
           TextField(
             controller: numeroController,
             keyboardType: TextInputType.phone,
+            inputFormatters: const [TelefoneBrasileiroFormatter()],
             decoration: const InputDecoration(labelText: 'Telefone', prefixIcon: Icon(Icons.phone_outlined)),
           ),
           const SizedBox(height: 13),
@@ -4931,7 +5455,12 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
   Widget build(BuildContext context) {
     final titulos = ['Hoje', 'Semana', 'Clientes', 'Mais'];
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) sairDaConta(context, cliente: false);
+      },
+      child: Scaffold(
       appBar: AppBar(
         toolbarHeight: 70,
         titleSpacing: 15,
@@ -5026,6 +5555,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -5090,6 +5620,15 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           aoClicar: () => _abrirPaginaMais('Histórico', telaHistorico),
         ),
         _opcaoMais(
+          icone: Icons.workspace_premium_outlined,
+          titulo: 'Assinaturas VIP',
+          subtitulo: 'Assinantes, pagamentos e receita recebida',
+          aoClicar: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AssinaturasBarbeiroPage()),
+          ),
+        ),
+        _opcaoMais(
           icone: Icons.bar_chart_outlined,
           titulo: 'Relatórios',
           subtitulo: 'Faturamento, serviços e desempenho',
@@ -5119,14 +5658,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           titulo: 'Sair da conta',
           subtitulo: 'Voltar para a tela de login',
           corIcone: Colors.redAccent,
-          aoClicar: () {
-            authToken = '';
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-              (_) => false,
-            );
-          },
+          aoClicar: () => sairDaConta(context, cliente: false),
         ),
       ],
     );
@@ -5524,8 +6056,9 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
           const SizedBox(height: 18),
 
           // Seletor dos dias da semana.
+          // Folga vertical para não ocorrer BOTTOM OVERFLOW em telas com fontes maiores.
           SizedBox(
-            height: 84,
+            height: 100,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: diasSemana.length,
@@ -5570,7 +6103,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          vertical: 9,
+                          vertical: 6,
                           horizontal: 5,
                         ),
                         child: Column(
@@ -6801,7 +7334,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
       text: cliente?['nome']?.toString() ?? '',
     );
     final numeroController = TextEditingController(
-      text: cliente?['numero']?.toString() ?? '',
+      text: TelefoneBrasileiroFormatter.formatar(cliente?['numero']?.toString() ?? ''),
     );
     final editando = cliente != null;
 
@@ -6825,6 +7358,7 @@ class _PainelBarbeiroState extends State<PainelBarbeiro> {
             TextField(
               controller: numeroController,
               keyboardType: TextInputType.phone,
+              inputFormatters: const [TelefoneBrasileiroFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Telefone',
                 prefixIcon: Icon(Icons.phone_outlined),
@@ -8430,6 +8964,7 @@ class _NovoAgendamentoPageState extends State<NovoAgendamentoPage> {
                   TextField(
                     controller: numeroController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: const [TelefoneBrasileiroFormatter()],
                     decoration: const InputDecoration(
                       labelText: 'Telefone',
                       prefixIcon: Icon(Icons.phone_outlined),
@@ -8754,6 +9289,7 @@ class _CadastroFixoPageState extends State<CadastroFixoPage> {
                   TextField(
                     controller: numeroController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: const [TelefoneBrasileiroFormatter()],
                     decoration: const InputDecoration(
                       labelText: 'WhatsApp / telefone',
                       prefixIcon: Icon(Icons.phone_outlined),
