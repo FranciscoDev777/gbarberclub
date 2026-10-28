@@ -1,0 +1,15 @@
+services:
+  gbarberclub:
+    build: .
+    container_name: gbarberclub
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./barbearia.db:/app/barbearia.db
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro

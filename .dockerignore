@@ -1,0 +1,10 @@
+node_modules
+app_barbeiro
+.git
+.env
+barbearia.db
+barbearia.db-journal
+barbearia.db-wal
+barbearia.db-shm
+firebase-service-account.json
+*.log

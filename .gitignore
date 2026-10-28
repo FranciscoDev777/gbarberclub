@@ -7,7 +7,6 @@ app_barbeiro/lib-8877e-firebase-adminsdk-fbsvc-af5908ae7f.json
 # Variáveis de ambiente
 .env
 *.env
-
 # Node
 node_modules/
 

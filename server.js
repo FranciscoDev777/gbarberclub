@@ -21,7 +21,6 @@ if (!process.env.JWT_SECRET) {
   );
 }
 
-
 // ======================================================
 // FIREBASE ADMIN - NOTIFICAÇÕES PUSH
 // ======================================================
@@ -67,7 +66,9 @@ function gerarTokenCliente(cliente) {
   return jwt.sign(
     {
       id: cliente.id,
-      email: String(cliente.email || "").trim().toLowerCase(),
+      email: String(cliente.email || "")
+        .trim()
+        .toLowerCase(),
       nome: cliente.nome,
       tipo: "cliente",
     },
@@ -124,10 +125,7 @@ function autenticarToken(req, res, next) {
 
     const barbeiroBody = normalizarBarbeiro(req.body?.barbeiro);
 
-    if (
-      barbeiroBody &&
-      barbeiroBody !== req.usuarioAutenticado
-    ) {
+    if (barbeiroBody && barbeiroBody !== req.usuarioAutenticado) {
       return res.status(403).json({
         erro: "Você não pode alterar dados de outro barbeiro.",
       });
@@ -135,10 +133,7 @@ function autenticarToken(req, res, next) {
 
     const usuarioBody = normalizarBarbeiro(req.body?.usuario);
 
-    if (
-      usuarioBody &&
-      usuarioBody !== req.usuarioAutenticado
-    ) {
+    if (usuarioBody && usuarioBody !== req.usuarioAutenticado) {
       return res.status(403).json({
         erro: "Usuário diferente da conta autenticada.",
       });
@@ -163,10 +158,7 @@ function autenticarToken(req, res, next) {
     ) {
       const barbeiroRota = normalizarBarbeiro(partes[2]);
 
-      if (
-        barbeiroRota &&
-        barbeiroRota !== req.usuarioAutenticado
-      ) {
+      if (barbeiroRota && barbeiroRota !== req.usuarioAutenticado) {
         return res.status(403).json({
           erro: "Você não pode acessar dados de outro barbeiro.",
         });
@@ -181,10 +173,7 @@ function autenticarToken(req, res, next) {
     ) {
       const barbeiroRota = normalizarBarbeiro(partes[2]);
 
-      if (
-        barbeiroRota &&
-        barbeiroRota !== req.usuarioAutenticado
-      ) {
+      if (barbeiroRota && barbeiroRota !== req.usuarioAutenticado) {
         return res.status(403).json({
           erro: "Você não pode acessar clientes de outro barbeiro.",
         });
@@ -198,7 +187,6 @@ function autenticarToken(req, res, next) {
     });
   }
 }
-
 
 function autenticarClienteToken(req, res, next) {
   const autorizacao = String(req.headers.authorization || "").trim();
@@ -221,7 +209,9 @@ function autenticarClienteToken(req, res, next) {
     }
 
     req.clienteAutenticadoId = Number(dados.id);
-    req.clienteAutenticadoEmail = String(dados.email || "").trim().toLowerCase();
+    req.clienteAutenticadoEmail = String(dados.email || "")
+      .trim()
+      .toLowerCase();
     next();
   } catch (_) {
     return res.status(401).json({
@@ -271,17 +261,25 @@ db.all(`PRAGMA table_info(agendamentos)`, (erro, colunas) => {
   }
 
   const temValor = colunas.some((coluna) => coluna.name === "valor");
-  const temClienteAppId = colunas.some((coluna) => coluna.name === "cliente_app_id");
+  const temClienteAppId = colunas.some(
+    (coluna) => coluna.name === "cliente_app_id",
+  );
 
   const criarIndiceCliente = () => {
-    db.run(`
+    db.run(
+      `
       CREATE INDEX IF NOT EXISTS idx_agendamentos_cliente_app
       ON agendamentos(cliente_app_id, dia, horario)
-    `, (erroIndice) => {
-      if (erroIndice) {
-        console.error("Erro ao criar índice de clientes:", erroIndice.message);
-      }
-    });
+    `,
+      (erroIndice) => {
+        if (erroIndice) {
+          console.error(
+            "Erro ao criar índice de clientes:",
+            erroIndice.message,
+          );
+        }
+      },
+    );
   };
 
   const garantirClienteAppId = () => {
@@ -290,30 +288,39 @@ db.all(`PRAGMA table_info(agendamentos)`, (erro, colunas) => {
       return;
     }
 
-    db.run(`
+    db.run(
+      `
       ALTER TABLE agendamentos
       ADD COLUMN cliente_app_id INTEGER
-    `, (erroAlteracao) => {
-      if (erroAlteracao) {
-        console.error("Erro ao adicionar cliente_app_id:", erroAlteracao.message);
-        return;
-      }
+    `,
+      (erroAlteracao) => {
+        if (erroAlteracao) {
+          console.error(
+            "Erro ao adicionar cliente_app_id:",
+            erroAlteracao.message,
+          );
+          return;
+        }
 
-      console.log("Coluna cliente_app_id adicionada aos agendamentos.");
-      criarIndiceCliente();
-    });
+        console.log("Coluna cliente_app_id adicionada aos agendamentos.");
+        criarIndiceCliente();
+      },
+    );
   };
 
   if (!temValor) {
-    db.run(`
+    db.run(
+      `
       ALTER TABLE agendamentos
       ADD COLUMN valor REAL DEFAULT 0
-    `, (erroValor) => {
-      if (erroValor) {
-        console.error("Erro ao adicionar valor:", erroValor.message);
-      }
-      garantirClienteAppId();
-    });
+    `,
+      (erroValor) => {
+        if (erroValor) {
+          console.error("Erro ao adicionar valor:", erroValor.message);
+        }
+        garantirClienteAppId();
+      },
+    );
   } else {
     garantirClienteAppId();
   }
@@ -369,13 +376,19 @@ db.all(`PRAGMA table_info(barbeiros)`, (erro, colunas) => {
   }
 
   if (!temFoto) {
-    db.run(`ALTER TABLE barbeiros ADD COLUMN foto TEXT DEFAULT ''`, (erroAlteracao) => {
-      if (erroAlteracao) {
-        console.error("Erro ao adicionar coluna foto:", erroAlteracao.message);
-      } else {
-        console.log("Coluna foto adicionada aos barbeiros!");
-      }
-    });
+    db.run(
+      `ALTER TABLE barbeiros ADD COLUMN foto TEXT DEFAULT ''`,
+      (erroAlteracao) => {
+        if (erroAlteracao) {
+          console.error(
+            "Erro ao adicionar coluna foto:",
+            erroAlteracao.message,
+          );
+        } else {
+          console.log("Coluna foto adicionada aos barbeiros!");
+        }
+      },
+    );
   }
 });
 
@@ -412,7 +425,8 @@ db.run(`
 // ======================================================
 
 db.serialize(() => {
-  db.run(`
+  db.run(
+    `
     CREATE TABLE IF NOT EXISTS clientes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
@@ -422,57 +436,65 @@ db.serialize(() => {
       criado_em INTEGER NOT NULL,
       atualizado_em INTEGER NOT NULL
     )
-  `, (erroCriar) => {
-    if (erroCriar) {
-      console.error("Erro ao criar/verificar tabela clientes:", erroCriar.message);
-      return;
-    }
-
-    // Migração para bancos antigos que ainda não possuem numero_busca.
-    db.all(`PRAGMA table_info(clientes)`, (erroInfo, colunas) => {
-      if (erroInfo) {
-        console.error("Erro ao verificar colunas de clientes:", erroInfo.message);
+  `,
+    (erroCriar) => {
+      if (erroCriar) {
+        console.error(
+          "Erro ao criar/verificar tabela clientes:",
+          erroCriar.message,
+        );
         return;
       }
 
-      const possuiNumeroBusca = colunas.some(
-        (coluna) => coluna.name === "numero_busca",
-      );
+      // Migração para bancos antigos que ainda não possuem numero_busca.
+      db.all(`PRAGMA table_info(clientes)`, (erroInfo, colunas) => {
+        if (erroInfo) {
+          console.error(
+            "Erro ao verificar colunas de clientes:",
+            erroInfo.message,
+          );
+          return;
+        }
 
-      const criarIndices = () => {
-        db.run(`
+        const possuiNumeroBusca = colunas.some(
+          (coluna) => coluna.name === "numero_busca",
+        );
+
+        const criarIndices = () => {
+          db.run(`
           CREATE INDEX IF NOT EXISTS idx_clientes_barbeiro
           ON clientes(barbeiro)
         `);
 
-        db.run(`
+          db.run(`
           CREATE INDEX IF NOT EXISTS idx_clientes_numero_busca
           ON clientes(barbeiro, numero_busca)
         `);
-      };
+        };
 
-      if (possuiNumeroBusca) {
-        criarIndices();
-        return;
-      }
-
-      db.run(
-        `ALTER TABLE clientes ADD COLUMN numero_busca TEXT DEFAULT ''`,
-        (erroAlteracao) => {
-          if (erroAlteracao) {
-            console.error(
-              "Erro ao adicionar numero_busca em clientes:",
-              erroAlteracao.message,
-            );
-            return;
-          }
-
-          console.log("Coluna numero_busca adicionada aos clientes.");
+        if (possuiNumeroBusca) {
           criarIndices();
-        },
-      );
-    });
-  });
+          return;
+        }
+
+        db.run(
+          `ALTER TABLE clientes ADD COLUMN numero_busca TEXT DEFAULT ''`,
+          (erroAlteracao) => {
+            if (erroAlteracao) {
+              console.error(
+                "Erro ao adicionar numero_busca em clientes:",
+                erroAlteracao.message,
+              );
+              return;
+            }
+
+            console.log("Coluna numero_busca adicionada aos clientes.");
+            criarIndices();
+          },
+        );
+      });
+    },
+  );
 });
 
 // ======================================================
@@ -502,24 +524,29 @@ db.all(`PRAGMA table_info(clientes_app)`, (erro, colunas) => {
   const nomes = colunas.map((c) => c.name);
   const adicionar = (nome, tipo) => {
     if (!nomes.includes(nome)) {
-      db.run(`ALTER TABLE clientes_app ADD COLUMN ${nome} ${tipo}`, (erroAlteracao) => {
-        if (erroAlteracao) console.error(`Erro ao adicionar ${nome}:`, erroAlteracao.message);
-        else console.log(`Coluna ${nome} adicionada aos clientes_app.`);
-      });
+      db.run(
+        `ALTER TABLE clientes_app ADD COLUMN ${nome} ${tipo}`,
+        (erroAlteracao) => {
+          if (erroAlteracao)
+            console.error(`Erro ao adicionar ${nome}:`, erroAlteracao.message);
+          else console.log(`Coluna ${nome} adicionada aos clientes_app.`);
+        },
+      );
     }
   };
 
-  adicionar('preferencia_corte', "TEXT DEFAULT 'Não informado'");
-  adicionar('preferencia_fade', "TEXT DEFAULT 'Não informado'");
-  adicionar('preferencia_barba', "TEXT DEFAULT 'Não informado'");
-  adicionar('observacoes_corte', "TEXT DEFAULT ''");
+  adicionar("preferencia_corte", "TEXT DEFAULT 'Não informado'");
+  adicionar("preferencia_fade", "TEXT DEFAULT 'Não informado'");
+  adicionar("preferencia_barba", "TEXT DEFAULT 'Não informado'");
+  adicionar("observacoes_corte", "TEXT DEFAULT ''");
 });
 
 // ======================================================
 // AVALIAÇÕES DOS ATENDIMENTOS
 // ======================================================
 db.serialize(() => {
-  db.run(`
+  db.run(
+    `
     CREATE TABLE IF NOT EXISTS avaliacoes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       agendamento_id INTEGER UNIQUE NOT NULL,
@@ -531,29 +558,35 @@ db.serialize(() => {
       FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
       FOREIGN KEY (cliente_app_id) REFERENCES clientes_app(id)
     )
-  `, (erro) => {
-    if (erro) {
-      console.error("Erro ao criar tabela avaliacoes:", erro.message);
-    } else {
-      console.log("Tabela avaliacoes pronta!");
-    }
-  });
+  `,
+    (erro) => {
+      if (erro) {
+        console.error("Erro ao criar tabela avaliacoes:", erro.message);
+      } else {
+        console.log("Tabela avaliacoes pronta!");
+      }
+    },
+  );
 
-  db.run(`
+  db.run(
+    `
     CREATE INDEX IF NOT EXISTS idx_avaliacoes_barbeiro
     ON avaliacoes(barbeiro, criado_em)
-  `, (erro) => {
-    if (erro) {
-      console.error("Erro ao criar índice de avaliacoes:", erro.message);
-    }
-  });
+  `,
+    (erro) => {
+      if (erro) {
+        console.error("Erro ao criar índice de avaliacoes:", erro.message);
+      }
+    },
+  );
 });
 
 // ======================================================
 // PRODUTOS VENDIDOS NO CRM
 // ======================================================
 db.serialize(() => {
-  db.run(`
+  db.run(
+    `
     CREATE TABLE IF NOT EXISTS produtos_vendidos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       agendamento_id INTEGER UNIQUE NOT NULL,
@@ -565,17 +598,27 @@ db.serialize(() => {
       FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
       FOREIGN KEY (cliente_app_id) REFERENCES clientes_app(id)
     )
-  `, (erro) => {
-    if (erro) console.error("Erro ao criar tabela produtos_vendidos:", erro.message);
-    else console.log("Tabela produtos_vendidos pronta!");
-  });
+  `,
+    (erro) => {
+      if (erro)
+        console.error("Erro ao criar tabela produtos_vendidos:", erro.message);
+      else console.log("Tabela produtos_vendidos pronta!");
+    },
+  );
 
-  db.run(`
+  db.run(
+    `
     CREATE INDEX IF NOT EXISTS idx_produtos_vendidos_cliente
     ON produtos_vendidos(cliente_app_id, criado_em)
-  `, (erro) => {
-    if (erro) console.error("Erro ao criar índice de produtos_vendidos:", erro.message);
-  });
+  `,
+    (erro) => {
+      if (erro)
+        console.error(
+          "Erro ao criar índice de produtos_vendidos:",
+          erro.message,
+        );
+    },
+  );
 });
 
 // ======================================================
@@ -652,8 +695,12 @@ function mesmoCliente(cliente, agendamento) {
   }
 
   return (
-    String(cliente.nome || "").trim().toLowerCase() ===
-    String(agendamento.nome || "").trim().toLowerCase()
+    String(cliente.nome || "")
+      .trim()
+      .toLowerCase() ===
+    String(agendamento.nome || "")
+      .trim()
+      .toLowerCase()
   );
 }
 
@@ -1096,7 +1143,9 @@ app.post("/cliente/cadastro", (req, res) => {
 
   nome = String(nome || "").trim();
   numero = String(numero || "").trim();
-  email = String(email || "").trim().toLowerCase();
+  email = String(email || "")
+    .trim()
+    .toLowerCase();
   senha = String(senha || "");
 
   if (!nome || !email || !senha) {
@@ -1136,7 +1185,11 @@ app.post("/cliente/cadastro", (req, res) => {
     ],
     function (erro) {
       if (erro) {
-        if (String(erro.message || "").toLowerCase().includes("unique")) {
+        if (
+          String(erro.message || "")
+            .toLowerCase()
+            .includes("unique")
+        ) {
           return res.status(409).json({
             erro: "Já existe uma conta com este e-mail.",
           });
@@ -1167,7 +1220,9 @@ app.post("/cliente/cadastro", (req, res) => {
 // ======================================================
 
 app.post("/cliente/login", (req, res) => {
-  const email = String(req.body.email || "").trim().toLowerCase();
+  const email = String(req.body.email || "")
+    .trim()
+    .toLowerCase();
   const senha = String(req.body.senha || "");
 
   if (!email || !senha) {
@@ -1220,7 +1275,6 @@ app.post("/cliente/login", (req, res) => {
   );
 });
 
-
 // ======================================================
 // CLIENTE - PROGRAMA DE FIDELIDADE
 // ======================================================
@@ -1237,7 +1291,9 @@ app.get("/cliente/fidelidade", autenticarClienteToken, (req, res) => {
     (erro, registros) => {
       if (erro) {
         console.error(erro);
-        return res.status(500).json({ erro: "Erro ao carregar programa de fidelidade." });
+        return res
+          .status(500)
+          .json({ erro: "Erro ao carregar programa de fidelidade." });
       }
 
       const cortes = registros.length;
@@ -1283,14 +1339,26 @@ app.get("/cliente/me", autenticarClienteToken, (req, res) => {
 app.put("/cliente/me", autenticarClienteToken, (req, res) => {
   const nome = String(req.body.nome || "").trim();
   const numero = String(req.body.numero || "").trim();
-  const email = String(req.body.email || "").trim().toLowerCase();
-  const preferenciaCorte = String(req.body.preferencia_corte || "Não informado").trim();
-  const preferenciaFade = String(req.body.preferencia_fade || "Não informado").trim();
-  const preferenciaBarba = String(req.body.preferencia_barba || "Não informado").trim();
-  const observacoesCorte = String(req.body.observacoes_corte || "").trim().slice(0, 300);
+  const email = String(req.body.email || "")
+    .trim()
+    .toLowerCase();
+  const preferenciaCorte = String(
+    req.body.preferencia_corte || "Não informado",
+  ).trim();
+  const preferenciaFade = String(
+    req.body.preferencia_fade || "Não informado",
+  ).trim();
+  const preferenciaBarba = String(
+    req.body.preferencia_barba || "Não informado",
+  ).trim();
+  const observacoesCorte = String(req.body.observacoes_corte || "")
+    .trim()
+    .slice(0, 300);
 
   if (!nome || !email || !email.includes("@")) {
-    return res.status(400).json({ erro: "Nome e e-mail válidos são obrigatórios." });
+    return res
+      .status(400)
+      .json({ erro: "Nome e e-mail válidos são obrigatórios." });
   }
 
   db.run(
@@ -1300,14 +1368,30 @@ app.put("/cliente/me", autenticarClienteToken, (req, res) => {
            preferencia_barba = ?, observacoes_corte = ?,
            atualizado_em = ?
        WHERE id = ?`,
-    [nome, numero, email, preferenciaCorte, preferenciaFade, preferenciaBarba, observacoesCorte, Date.now(), req.clienteAutenticadoId],
+    [
+      nome,
+      numero,
+      email,
+      preferenciaCorte,
+      preferenciaFade,
+      preferenciaBarba,
+      observacoesCorte,
+      Date.now(),
+      req.clienteAutenticadoId,
+    ],
     function (erro) {
       if (erro) {
-        if (String(erro.message || "").toLowerCase().includes("unique")) {
+        if (
+          String(erro.message || "")
+            .toLowerCase()
+            .includes("unique")
+        ) {
           return res.status(409).json({ erro: "Este e-mail já está em uso." });
         }
         console.error(erro);
-        return res.status(500).json({ erro: "Não foi possível atualizar o perfil." });
+        return res
+          .status(500)
+          .json({ erro: "Não foi possível atualizar o perfil." });
       }
       res.json({ sucesso: true, mensagem: "Perfil atualizado com sucesso!" });
     },
@@ -1323,7 +1407,9 @@ app.put("/cliente/alterar-senha", autenticarClienteToken, (req, res) => {
     return res.status(400).json({ erro: "Preencha todos os campos." });
   }
   if (novaSenha.length < 6) {
-    return res.status(400).json({ erro: "A nova senha precisa ter pelo menos 6 caracteres." });
+    return res
+      .status(400)
+      .json({ erro: "A nova senha precisa ter pelo menos 6 caracteres." });
   }
   if (novaSenha !== confirmarSenha) {
     return res.status(400).json({ erro: "As novas senhas não coincidem." });
@@ -1342,11 +1428,18 @@ app.put("/cliente/alterar-senha", autenticarClienteToken, (req, res) => {
       const dadosSenha = gerarSenhaSegura(novaSenha);
       db.run(
         `UPDATE clientes_app SET senha_hash = ?, senha_salt = ?, atualizado_em = ? WHERE id = ?`,
-        [dadosSenha.hash, dadosSenha.salt, Date.now(), req.clienteAutenticadoId],
+        [
+          dadosSenha.hash,
+          dadosSenha.salt,
+          Date.now(),
+          req.clienteAutenticadoId,
+        ],
         (erroUpdate) => {
           if (erroUpdate) {
             console.error(erroUpdate);
-            return res.status(500).json({ erro: "Não foi possível alterar a senha." });
+            return res
+              .status(500)
+              .json({ erro: "Não foi possível alterar a senha." });
           }
           res.json({ sucesso: true, mensagem: "Senha alterada com sucesso!" });
         },
@@ -1377,10 +1470,12 @@ app.get("/cliente/agendamentos", autenticarClienteToken, (req, res) => {
          ORDER BY dia, horario`,
         [req.clienteAutenticadoId, numero],
         (erro, registros) => {
-      if (erro) {
-        console.error(erro);
-        return res.status(500).json({ erro: "Erro ao carregar seus agendamentos." });
-      }
+          if (erro) {
+            console.error(erro);
+            return res
+              .status(500)
+              .json({ erro: "Erro ao carregar seus agendamentos." });
+          }
           res.json(registros);
         },
       );
@@ -1410,10 +1505,12 @@ app.get("/cliente/historico", autenticarClienteToken, (req, res) => {
          ORDER BY a.dia DESC, a.horario DESC`,
         [req.clienteAutenticadoId, numero, hoje],
         (erro, registros) => {
-      if (erro) {
-        console.error(erro);
-        return res.status(500).json({ erro: "Erro ao carregar histórico." });
-      }
+          if (erro) {
+            console.error(erro);
+            return res
+              .status(500)
+              .json({ erro: "Erro ao carregar histórico." });
+          }
           res.json(registros);
         },
       );
@@ -1433,12 +1530,19 @@ app.delete("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
     function (erro) {
       if (erro) {
         console.error(erro);
-        return res.status(500).json({ erro: "Não foi possível cancelar o agendamento." });
+        return res
+          .status(500)
+          .json({ erro: "Não foi possível cancelar o agendamento." });
       }
       if (this.changes === 0) {
-        return res.status(404).json({ erro: "Agendamento não encontrado ou já cancelado." });
+        return res
+          .status(404)
+          .json({ erro: "Agendamento não encontrado ou já cancelado." });
       }
-      res.json({ sucesso: true, mensagem: "Agendamento cancelado com sucesso!" });
+      res.json({
+        sucesso: true,
+        mensagem: "Agendamento cancelado com sucesso!",
+      });
     },
   );
 });
@@ -1462,15 +1566,21 @@ app.put("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
   const dataObjeto = criarDataLocal(dia);
   const diaSemana = dataObjeto.getDay();
   if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
-    return res.status(400).json({ erro: "Esse barbeiro não trabalha neste dia." });
+    return res
+      .status(400)
+      .json({ erro: "Esse barbeiro não trabalha neste dia." });
   }
 
   db.get(
     `SELECT * FROM bloqueios WHERE barbeiro = ? AND dia = ? AND (dia_inteiro = 1 OR horario = ?) LIMIT 1`,
     [barbeiro, dia, horario],
     (erroBloqueio, bloqueio) => {
-      if (erroBloqueio) return res.status(500).json({ erro: "Erro ao verificar bloqueio." });
-      if (bloqueio) return res.status(400).json({ erro: "Esse horário está bloqueado pelo barbeiro." });
+      if (erroBloqueio)
+        return res.status(500).json({ erro: "Erro ao verificar bloqueio." });
+      if (bloqueio)
+        return res
+          .status(400)
+          .json({ erro: "Esse horário está bloqueado pelo barbeiro." });
 
       db.get(
         `SELECT * FROM agendamentos
@@ -1480,23 +1590,43 @@ app.put("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
          LIMIT 1`,
         [barbeiro, horario, id, dia, diaSemana],
         (erroOcupado, ocupado) => {
-          if (erroOcupado) return res.status(500).json({ erro: "Erro ao verificar horário." });
-          if (ocupado) return res.status(400).json({ erro: "Esse horário já está ocupado." });
+          if (erroOcupado)
+            return res.status(500).json({ erro: "Erro ao verificar horário." });
+          if (ocupado)
+            return res
+              .status(400)
+              .json({ erro: "Esse horário já está ocupado." });
 
           db.run(
             `UPDATE agendamentos
              SET dia = ?, horario = ?, barbeiro = ?, servico = ?, valor = ?, dia_semana = ?, status = 'Confirmado'
              WHERE id = ? AND cliente_app_id = ? AND fixo = 0 AND status != 'Cancelado'`,
-            [dia, horario, barbeiro, servico, valor, diaSemana, id, req.clienteAutenticadoId],
+            [
+              dia,
+              horario,
+              barbeiro,
+              servico,
+              valor,
+              diaSemana,
+              id,
+              req.clienteAutenticadoId,
+            ],
             function (erroUpdate) {
               if (erroUpdate) {
                 console.error(erroUpdate);
-                return res.status(500).json({ erro: "Não foi possível remarcar o agendamento." });
+                return res
+                  .status(500)
+                  .json({ erro: "Não foi possível remarcar o agendamento." });
               }
               if (this.changes === 0) {
-                return res.status(404).json({ erro: "Agendamento não encontrado." });
+                return res
+                  .status(404)
+                  .json({ erro: "Agendamento não encontrado." });
               }
-              res.json({ sucesso: true, mensagem: "Agendamento remarcado com sucesso!" });
+              res.json({
+                sucesso: true,
+                mensagem: "Agendamento remarcado com sucesso!",
+              });
             },
           );
         },
@@ -1509,7 +1639,8 @@ app.put("/cliente/agendamentos/:id", autenticarClienteToken, (req, res) => {
 // CLIENTE - AVALIAÇÕES PENDENTES
 // ======================================================
 app.get("/cliente/avaliacoes-pendentes", autenticarClienteToken, (req, res) => {
-  db.all(`
+  db.all(
+    `
     SELECT a.*
     FROM agendamentos a
     LEFT JOIN avaliacoes av ON av.agendamento_id = a.id
@@ -1518,13 +1649,18 @@ app.get("/cliente/avaliacoes-pendentes", autenticarClienteToken, (req, res) => {
       AND a.status = 'Finalizado'
       AND av.id IS NULL
     ORDER BY a.dia DESC, a.horario DESC
-  `, [req.clienteAutenticadoId], (erro, registros) => {
-    if (erro) {
-      console.error(erro);
-      return res.status(500).json({ erro: "Erro ao carregar avaliações pendentes." });
-    }
-    res.json(registros);
-  });
+  `,
+    [req.clienteAutenticadoId],
+    (erro, registros) => {
+      if (erro) {
+        console.error(erro);
+        return res
+          .status(500)
+          .json({ erro: "Erro ao carregar avaliações pendentes." });
+      }
+      res.json(registros);
+    },
+  );
 });
 
 // ======================================================
@@ -1533,34 +1669,69 @@ app.get("/cliente/avaliacoes-pendentes", autenticarClienteToken, (req, res) => {
 app.post("/cliente/avaliar", autenticarClienteToken, (req, res) => {
   const agendamentoId = Number(req.body.agendamento_id);
   const estrelas = Number(req.body.estrelas);
-  const comentario = String(req.body.comentario || "").trim().slice(0, 500);
+  const comentario = String(req.body.comentario || "")
+    .trim()
+    .slice(0, 500);
 
-  if (!agendamentoId || !Number.isInteger(estrelas) || estrelas < 1 || estrelas > 5) {
-    return res.status(400).json({ erro: "Escolha uma avaliação de 1 a 5 estrelas." });
+  if (
+    !agendamentoId ||
+    !Number.isInteger(estrelas) ||
+    estrelas < 1 ||
+    estrelas > 5
+  ) {
+    return res
+      .status(400)
+      .json({ erro: "Escolha uma avaliação de 1 a 5 estrelas." });
   }
 
-  db.get(`
+  db.get(
+    `
     SELECT * FROM agendamentos
     WHERE id = ? AND cliente_app_id = ? AND fixo = 0 AND status = 'Finalizado'
-  `, [agendamentoId, req.clienteAutenticadoId], (erro, agendamento) => {
-    if (erro) return res.status(500).json({ erro: "Erro ao verificar atendimento." });
-    if (!agendamento) return res.status(404).json({ erro: "Atendimento finalizado não encontrado." });
+  `,
+    [agendamentoId, req.clienteAutenticadoId],
+    (erro, agendamento) => {
+      if (erro)
+        return res.status(500).json({ erro: "Erro ao verificar atendimento." });
+      if (!agendamento)
+        return res
+          .status(404)
+          .json({ erro: "Atendimento finalizado não encontrado." });
 
-    db.run(`
+      db.run(
+        `
       INSERT INTO avaliacoes
       (agendamento_id, cliente_app_id, barbeiro, estrelas, comentario, criado_em)
       VALUES (?, ?, ?, ?, ?, ?)
-    `, [agendamentoId, req.clienteAutenticadoId, agendamento.barbeiro, estrelas, comentario, Date.now()], function (erroInsert) {
-      if (erroInsert) {
-        if (String(erroInsert.message).includes("UNIQUE")) {
-          return res.status(409).json({ erro: "Esse atendimento já foi avaliado." });
-        }
-        console.error(erroInsert);
-        return res.status(500).json({ erro: "Não foi possível salvar a avaliação." });
-      }
-      res.json({ sucesso: true, mensagem: "Avaliação enviada com sucesso!" });
-    });
-  });
+    `,
+        [
+          agendamentoId,
+          req.clienteAutenticadoId,
+          agendamento.barbeiro,
+          estrelas,
+          comentario,
+          Date.now(),
+        ],
+        function (erroInsert) {
+          if (erroInsert) {
+            if (String(erroInsert.message).includes("UNIQUE")) {
+              return res
+                .status(409)
+                .json({ erro: "Esse atendimento já foi avaliado." });
+            }
+            console.error(erroInsert);
+            return res
+              .status(500)
+              .json({ erro: "Não foi possível salvar a avaliação." });
+          }
+          res.json({
+            sucesso: true,
+            mensagem: "Avaliação enviada com sucesso!",
+          });
+        },
+      );
+    },
+  );
 });
 
 // ======================================================
@@ -1568,7 +1739,8 @@ app.post("/cliente/avaliar", autenticarClienteToken, (req, res) => {
 // ======================================================
 app.get("/app/avaliacoes/:barbeiro", (req, res) => {
   const barbeiro = normalizarBarbeiro(req.params.barbeiro);
-  db.all(`
+  db.all(
+    `
     SELECT av.id, av.agendamento_id, av.estrelas, av.comentario, av.criado_em,
            c.nome AS cliente_nome, a.servico, a.dia, a.horario
     FROM avaliacoes av
@@ -1577,15 +1749,25 @@ app.get("/app/avaliacoes/:barbeiro", (req, res) => {
     WHERE av.barbeiro = ?
     ORDER BY av.criado_em DESC
     LIMIT 100
-  `, [barbeiro], (erro, registros) => {
-    if (erro) {
-      console.error(erro);
-      return res.status(500).json({ erro: "Erro ao carregar avaliações." });
-    }
-    const total = registros.length;
-    const soma = registros.reduce((acc, item) => acc + Number(item.estrelas || 0), 0);
-    res.json({ media: total ? Number((soma / total).toFixed(1)) : 0, total, avaliacoes: registros });
-  });
+  `,
+    [barbeiro],
+    (erro, registros) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar avaliações." });
+      }
+      const total = registros.length;
+      const soma = registros.reduce(
+        (acc, item) => acc + Number(item.estrelas || 0),
+        0,
+      );
+      res.json({
+        media: total ? Number((soma / total).toFixed(1)) : 0,
+        total,
+        avaliacoes: registros,
+      });
+    },
+  );
 });
 
 // ======================================================
@@ -1613,7 +1795,9 @@ app.post("/cliente/agendar", autenticarClienteToken, (req, res) => {
       valor = Number(valor) || 0;
 
       if (!dia || !horario || !barbeiro) {
-        return res.status(400).json({ erro: "Preencha os dados obrigatórios." });
+        return res
+          .status(400)
+          .json({ erro: "Preencha os dados obrigatórios." });
       }
       if (!horariosBase.includes(horario)) {
         return res.status(400).json({ erro: "Horário inválido." });
@@ -1622,15 +1806,23 @@ app.post("/cliente/agendar", autenticarClienteToken, (req, res) => {
       const dataObjeto = criarDataLocal(dia);
       const diaSemana = dataObjeto.getDay();
       if (!barbeiroTrabalhaNoDia(barbeiro, diaSemana)) {
-        return res.status(400).json({ erro: "Esse barbeiro não trabalha neste dia." });
+        return res
+          .status(400)
+          .json({ erro: "Esse barbeiro não trabalha neste dia." });
       }
 
       db.get(
         `SELECT * FROM bloqueios WHERE barbeiro = ? AND dia = ? AND (dia_inteiro = 1 OR horario = ?) LIMIT 1`,
         [barbeiro, dia, horario],
         (erroBloqueio, bloqueio) => {
-          if (erroBloqueio) return res.status(500).json({ erro: "Erro ao verificar bloqueio." });
-          if (bloqueio) return res.status(400).json({ erro: "Esse horário está bloqueado pelo barbeiro." });
+          if (erroBloqueio)
+            return res
+              .status(500)
+              .json({ erro: "Erro ao verificar bloqueio." });
+          if (bloqueio)
+            return res
+              .status(400)
+              .json({ erro: "Esse horário está bloqueado pelo barbeiro." });
 
           db.get(
             `SELECT * FROM agendamentos
@@ -1639,18 +1831,36 @@ app.post("/cliente/agendar", autenticarClienteToken, (req, res) => {
              LIMIT 1`,
             [barbeiro, horario, dia, diaSemana],
             (erroOcupado, ocupado) => {
-              if (erroOcupado) return res.status(500).json({ erro: "Erro ao verificar horário." });
-              if (ocupado) return res.status(400).json({ erro: "Esse horário já está ocupado." });
+              if (erroOcupado)
+                return res
+                  .status(500)
+                  .json({ erro: "Erro ao verificar horário." });
+              if (ocupado)
+                return res
+                  .status(400)
+                  .json({ erro: "Esse horário já está ocupado." });
 
               db.run(
                 `INSERT INTO agendamentos
                  (nome, numero, dia, horario, barbeiro, servico, valor, status, fixo, dia_semana, cliente_app_id)
                  VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?, ?)`,
-                [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana, clienteId],
+                [
+                  nome,
+                  numero,
+                  dia,
+                  horario,
+                  barbeiro,
+                  servico,
+                  valor,
+                  diaSemana,
+                  clienteId,
+                ],
                 function (erroInsert) {
                   if (erroInsert) {
                     console.error(erroInsert);
-                    return res.status(500).json({ erro: "Erro ao criar agendamento." });
+                    return res
+                      .status(500)
+                      .json({ erro: "Erro ao criar agendamento." });
                   }
 
                   const agendamentoId = this.lastID;
@@ -1660,8 +1870,15 @@ app.post("/cliente/agendar", autenticarClienteToken, (req, res) => {
                     mensagem: "Agendamento realizado com sucesso!",
                   });
 
-                  salvarClienteAutomaticamente({ nome, numero, barbeiro }).catch((erro) => {
-                    console.error("Erro ao salvar cliente automaticamente:", erro);
+                  salvarClienteAutomaticamente({
+                    nome,
+                    numero,
+                    barbeiro,
+                  }).catch((erro) => {
+                    console.error(
+                      "Erro ao salvar cliente automaticamente:",
+                      erro,
+                    );
                   });
 
                   enviarNotificacaoNovoAgendamento({
@@ -2135,7 +2352,10 @@ app.post("/agendar", (req, res) => {
   const autorizacaoCliente = String(req.headers.authorization || "").trim();
   if (autorizacaoCliente.startsWith("Bearer ")) {
     try {
-      const dadosToken = jwt.verify(autorizacaoCliente.substring(7).trim(), JWT_SECRET);
+      const dadosToken = jwt.verify(
+        autorizacaoCliente.substring(7).trim(),
+        JWT_SECRET,
+      );
       if (dadosToken.tipo === "cliente" && Number(dadosToken.id)) {
         clienteAppId = Number(dadosToken.id);
       }
@@ -2247,7 +2467,17 @@ app.post("/agendar", (req, res) => {
               )
               VALUES (?, ?, ?, ?, ?, ?, ?, 'Confirmado', 0, ?, ?)
             `,
-            [nome, numero, dia, horario, barbeiro, servico, valor, diaSemana, clienteAppId],
+            [
+              nome,
+              numero,
+              dia,
+              horario,
+              barbeiro,
+              servico,
+              valor,
+              diaSemana,
+              clienteAppId,
+            ],
             function (erroInsert) {
               if (erroInsert) {
                 console.error(erroInsert);
@@ -2270,7 +2500,10 @@ app.post("/agendar", (req, res) => {
                 numero,
                 barbeiro,
               }).catch((erroCliente) => {
-                console.error("Erro ao salvar cliente automaticamente:", erroCliente);
+                console.error(
+                  "Erro ao salvar cliente automaticamente:",
+                  erroCliente,
+                );
               });
 
               enviarNotificacaoNovoAgendamento({
@@ -2399,7 +2632,10 @@ app.post("/agendar-fixo", (req, res) => {
             numero,
             barbeiro,
           }).catch((erroCliente) => {
-            console.error("Erro ao salvar cliente automaticamente:", erroCliente);
+            console.error(
+              "Erro ao salvar cliente automaticamente:",
+              erroCliente,
+            );
           });
         },
       );
@@ -3048,7 +3284,9 @@ app.put("/finalizar/:id", (req, res) => {
   }
 
   if (produto && (!Number.isFinite(valorProduto) || valorProduto <= 0)) {
-    return res.status(400).json({ erro: "Informe um valor válido para o produto." });
+    return res
+      .status(400)
+      .json({ erro: "Informe um valor válido para o produto." });
   }
 
   db.get(
@@ -3083,7 +3321,9 @@ app.put("/finalizar/:id", (req, res) => {
             (erroExcluirProduto) => {
               if (erroExcluirProduto) {
                 console.error(erroExcluirProduto);
-                return res.status(500).json({ erro: "Erro ao atualizar produto vendido." });
+                return res
+                  .status(500)
+                  .json({ erro: "Erro ao atualizar produto vendido." });
               }
 
               if (!produto) {
@@ -3110,7 +3350,11 @@ app.put("/finalizar/:id", (req, res) => {
                 (erroProduto) => {
                   if (erroProduto) {
                     console.error(erroProduto);
-                    return res.status(500).json({ erro: "Agendamento finalizado, mas não foi possível registrar o produto." });
+                    return res
+                      .status(500)
+                      .json({
+                        erro: "Agendamento finalizado, mas não foi possível registrar o produto.",
+                      });
                   }
 
                   res.json({
@@ -3530,7 +3774,9 @@ app.get("/app/agendamentos-dia/:barbeiro/:dia", (req, res) => {
     (erro, registros) => {
       if (erro) {
         console.error("Erro ao carregar agenda do dia:", erro);
-        return res.status(500).json({ erro: "Erro ao carregar agenda do dia." });
+        return res
+          .status(500)
+          .json({ erro: "Erro ao carregar agenda do dia." });
       }
 
       res.json(
@@ -3575,7 +3821,9 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
       (erroAgendamentos, historico) => {
         if (erroAgendamentos) {
           console.error(erroAgendamentos);
-          return res.status(500).json({ erro: "Erro ao carregar histórico do cliente." });
+          return res
+            .status(500)
+            .json({ erro: "Erro ao carregar histórico do cliente." });
         }
 
         const finalizados = historico.filter((a) => a.status === "Finalizado");
@@ -3583,7 +3831,7 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
 
         const carregarProdutos = (callback) => {
           if (!ids.length) return callback(null, []);
-          const placeholders = ids.map(() => '?').join(',');
+          const placeholders = ids.map(() => "?").join(",");
           db.all(
             `SELECT * FROM produtos_vendidos WHERE agendamento_id IN (${placeholders}) ORDER BY criado_em DESC`,
             ids,
@@ -3594,12 +3842,14 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
         carregarProdutos((erroProdutos, produtos) => {
           if (erroProdutos) {
             console.error(erroProdutos);
-            return res.status(500).json({ erro: "Erro ao carregar produtos vendidos." });
+            return res
+              .status(500)
+              .json({ erro: "Erro ao carregar produtos vendidos." });
           }
 
           const carregarAvaliacoes = (callback) => {
             if (!ids.length) return callback(null, []);
-            const placeholders = ids.map(() => '?').join(',');
+            const placeholders = ids.map(() => "?").join(",");
             db.all(
               `
                 SELECT av.*, a.servico, a.dia, a.horario
@@ -3616,17 +3866,38 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
           carregarAvaliacoes((erroAvaliacoes, avaliacoes) => {
             if (erroAvaliacoes) {
               console.error(erroAvaliacoes);
-              return res.status(500).json({ erro: "Erro ao carregar avaliações." });
+              return res
+                .status(500)
+                .json({ erro: "Erro ao carregar avaliações." });
             }
 
-            const totalServicos = finalizados.reduce((s, a) => s + Number(a.valor || 0), 0);
-            const totalProdutos = produtos.reduce((s, p) => s + Number(p.valor || 0), 0);
+            const totalServicos = finalizados.reduce(
+              (s, a) => s + Number(a.valor || 0),
+              0,
+            );
+            const totalProdutos = produtos.reduce(
+              (s, p) => s + Number(p.valor || 0),
+              0,
+            );
             const totalGasto = totalServicos + totalProdutos;
-            const datas = finalizados.map((a) => String(a.dia || "")).filter(Boolean).sort();
+            const datas = finalizados
+              .map((a) => String(a.dia || ""))
+              .filter(Boolean)
+              .sort();
             const ultimo = datas.length ? datas[datas.length - 1] : null;
             const agora = new Date();
-            const diasSemVisita = ultimo ? Math.max(0, Math.floor((agora - new Date(`${ultimo}T00:00:00`)) / 86400000)) : 0;
-            const somaAvaliacoes = avaliacoes.reduce((s, a) => s + Number(a.estrelas || 0), 0);
+            const diasSemVisita = ultimo
+              ? Math.max(
+                  0,
+                  Math.floor(
+                    (agora - new Date(`${ultimo}T00:00:00`)) / 86400000,
+                  ),
+                )
+              : 0;
+            const somaAvaliacoes = avaliacoes.reduce(
+              (s, a) => s + Number(a.estrelas || 0),
+              0,
+            );
 
             res.json({
               cliente,
@@ -3641,7 +3912,9 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
               preferencia_fade: cliente.preferencia_fade || "Não informado",
               preferencia_barba: cliente.preferencia_barba || "Não informado",
               observacoes_corte: cliente.observacoes_corte || "",
-              media_avaliacoes: avaliacoes.length ? Number((somaAvaliacoes / avaliacoes.length).toFixed(1)) : 0,
+              media_avaliacoes: avaliacoes.length
+                ? Number((somaAvaliacoes / avaliacoes.length).toFixed(1))
+                : 0,
               total_avaliacoes: avaliacoes.length,
               avaliacoes,
               produtos_vendidos: produtos,
@@ -3690,7 +3963,9 @@ function carregarDetalhesCRM(barbeiro, clienteId, numero, res) {
           (erroManual, clienteManual) => {
             if (erroManual) {
               console.error(erroManual);
-              return res.status(500).json({ erro: "Erro ao localizar cliente." });
+              return res
+                .status(500)
+                .json({ erro: "Erro ao localizar cliente." });
             }
             finalizarResposta(clienteManual);
           },
@@ -3736,7 +4011,9 @@ app.get("/app/crm/:barbeiro", (req, res) => {
         (erroApp, contas) => {
           if (erroApp) {
             console.error(erroApp);
-            return res.status(500).json({ erro: "Erro ao carregar preferências." });
+            return res
+              .status(500)
+              .json({ erro: "Erro ao carregar preferências." });
           }
 
           db.all(
@@ -3745,14 +4022,20 @@ app.get("/app/crm/:barbeiro", (req, res) => {
             (erroAgendamentos, agendamentos) => {
               if (erroAgendamentos) {
                 console.error(erroAgendamentos);
-                return res.status(500).json({ erro: "Erro ao carregar atendimentos." });
+                return res
+                  .status(500)
+                  .json({ erro: "Erro ao carregar atendimentos." });
               }
 
-              const normalizar = (v) => String(v || '').replace(/\D/g, '');
+              const normalizar = (v) => String(v || "").replace(/\D/g, "");
 
               const resultado = clientes.map((cliente) => {
-                const historico = agendamentos.filter((item) => mesmoCliente(cliente, item));
-                const finalizados = historico.filter((item) => item.status === 'Finalizado');
+                const historico = agendamentos.filter((item) =>
+                  mesmoCliente(cliente, item),
+                );
+                const finalizados = historico.filter(
+                  (item) => item.status === "Finalizado",
+                );
                 const conta = contas.find((item) => {
                   const a = normalizar(item.numero);
                   const b = normalizar(cliente.numero);
@@ -3762,12 +4045,22 @@ app.get("/app/crm/:barbeiro", (req, res) => {
                 return {
                   ...cliente,
                   total_atendimentos: finalizados.length,
-                  total_gasto: finalizados.reduce((soma, item) => soma + Number(item.valor || 0), 0),
-                  ultimo_atendimento: finalizados.map((item) => String(item.dia || '')).filter(Boolean).sort().pop() || null,
-                  preferencia_corte: conta?.preferencia_corte || 'Não informado',
-                  preferencia_fade: conta?.preferencia_fade || 'Não informado',
-                  preferencia_barba: conta?.preferencia_barba || 'Não informado',
-                  observacoes_corte: conta?.observacoes_corte || '',
+                  total_gasto: finalizados.reduce(
+                    (soma, item) => soma + Number(item.valor || 0),
+                    0,
+                  ),
+                  ultimo_atendimento:
+                    finalizados
+                      .map((item) => String(item.dia || ""))
+                      .filter(Boolean)
+                      .sort()
+                      .pop() || null,
+                  preferencia_corte:
+                    conta?.preferencia_corte || "Não informado",
+                  preferencia_fade: conta?.preferencia_fade || "Não informado",
+                  preferencia_barba:
+                    conta?.preferencia_barba || "Não informado",
+                  observacoes_corte: conta?.observacoes_corte || "",
                   cliente_app_id: conta?.id || null,
                 };
               });
@@ -3787,7 +4080,9 @@ app.get("/app/crm/:barbeiro", (req, res) => {
 
 app.get("/app/clientes/:barbeiro", (req, res) => {
   const barbeiro = normalizarBarbeiro(req.params.barbeiro);
-  const busca = String(req.query.busca || "").trim().toLowerCase();
+  const busca = String(req.query.busca || "")
+    .trim()
+    .toLowerCase();
 
   db.all(
     `
@@ -3891,22 +4186,18 @@ app.post("/app/clientes", async (req, res) => {
       barbeiro,
     });
 
-    db.get(
-      `SELECT * FROM clientes WHERE id = ?`,
-      [id],
-      (erro, cliente) => {
-        if (erro) {
-          console.error(erro);
-          return res.status(500).json({ erro: "Erro ao carregar cliente." });
-        }
+    db.get(`SELECT * FROM clientes WHERE id = ?`, [id], (erro, cliente) => {
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao carregar cliente." });
+      }
 
-        res.json({
-          sucesso: true,
-          mensagem: "Cliente salvo com sucesso!",
-          cliente,
-        });
-      },
-    );
+      res.json({
+        sucesso: true,
+        mensagem: "Cliente salvo com sucesso!",
+        cliente,
+      });
+    });
   } catch (erro) {
     console.error(erro);
     res.status(500).json({ erro: "Erro ao cadastrar cliente." });
@@ -3941,13 +4232,7 @@ app.put("/app/clientes/:id", (req, res) => {
       WHERE id = ?
         AND barbeiro = ?
     `,
-    [
-      nome,
-      numero,
-      Date.now(),
-      id,
-      req.usuarioAutenticado,
-    ],
+    [nome, numero, Date.now(), id, req.usuarioAutenticado],
     function (erro) {
       if (erro) {
         console.error(erro);
@@ -3981,52 +4266,55 @@ app.get("/app/clientes/:id/historico", (req, res) => {
     `SELECT * FROM clientes WHERE id = ? AND barbeiro = ?`,
     [id, req.usuarioAutenticado],
     (erroCliente, cliente) => {
-    if (erroCliente) {
-      console.error(erroCliente);
-      return res.status(500).json({ erro: "Erro ao carregar cliente." });
-    }
+      if (erroCliente) {
+        console.error(erroCliente);
+        return res.status(500).json({ erro: "Erro ao carregar cliente." });
+      }
 
-    if (!cliente) {
-      return res.status(404).json({ erro: "Cliente não encontrado." });
-    }
+      if (!cliente) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
 
-    db.all(
-      `
+      db.all(
+        `
         SELECT *
         FROM agendamentos
         WHERE barbeiro = ?
           AND fixo = 0
         ORDER BY dia DESC, horario DESC
       `,
-      [cliente.barbeiro],
-      (erroAgendamentos, agendamentos) => {
-        if (erroAgendamentos) {
-          console.error(erroAgendamentos);
-          return res.status(500).json({ erro: "Erro ao carregar histórico." });
-        }
+        [cliente.barbeiro],
+        (erroAgendamentos, agendamentos) => {
+          if (erroAgendamentos) {
+            console.error(erroAgendamentos);
+            return res
+              .status(500)
+              .json({ erro: "Erro ao carregar histórico." });
+          }
 
-        const historico = agendamentos.filter((item) =>
-          mesmoCliente(cliente, item),
-        );
+          const historico = agendamentos.filter((item) =>
+            mesmoCliente(cliente, item),
+          );
 
-        const finalizados = historico.filter(
-          (item) => item.status === "Finalizado",
-        );
+          const finalizados = historico.filter(
+            (item) => item.status === "Finalizado",
+          );
 
-        const totalGasto = finalizados.reduce(
-          (soma, item) => soma + Number(item.valor || 0),
-          0,
-        );
+          const totalGasto = finalizados.reduce(
+            (soma, item) => soma + Number(item.valor || 0),
+            0,
+          );
 
-        res.json({
-          cliente,
-          total_atendimentos: finalizados.length,
-          total_gasto: totalGasto,
-          historico,
-        });
-      },
-    );
-  });
+          res.json({
+            cliente,
+            total_atendimentos: finalizados.length,
+            total_gasto: totalGasto,
+            historico,
+          });
+        },
+      );
+    },
+  );
 });
 
 // ======================================================
@@ -4044,20 +4332,21 @@ app.delete("/app/clientes/:id", (req, res) => {
     `DELETE FROM clientes WHERE id = ? AND barbeiro = ?`,
     [id, req.usuarioAutenticado],
     function (erro) {
-    if (erro) {
-      console.error(erro);
-      return res.status(500).json({ erro: "Erro ao excluir cliente." });
-    }
+      if (erro) {
+        console.error(erro);
+        return res.status(500).json({ erro: "Erro ao excluir cliente." });
+      }
 
-    if (this.changes === 0) {
-      return res.status(404).json({ erro: "Cliente não encontrado." });
-    }
+      if (this.changes === 0) {
+        return res.status(404).json({ erro: "Cliente não encontrado." });
+      }
 
-    res.json({
-      sucesso: true,
-      mensagem: "Cliente excluído do cadastro.",
-    });
-  });
+      res.json({
+        sucesso: true,
+        mensagem: "Cliente excluído do cadastro.",
+      });
+    },
+  );
 });
 
 // ======================================================
@@ -4101,7 +4390,8 @@ app.get("/app/relatorios/:barbeiro", (req, res) => {
 
       const finalizados = registros.filter((a) => a.status === "Finalizado");
       const canceladosMes = registros.filter(
-        (a) => a.status === "Cancelado" && a.dia >= inicioMes && a.dia <= fimMes,
+        (a) =>
+          a.status === "Cancelado" && a.dia >= inicioMes && a.dia <= fimMes,
       );
       const finalizadosMes = finalizados.filter(
         (a) => a.dia >= inicioMes && a.dia <= fimMes,
@@ -4123,7 +4413,8 @@ app.get("/app/relatorios/:barbeiro", (req, res) => {
 
       const servicosMap = {};
       for (const a of finalizadosMes) {
-        const nomeServico = String(a.servico || "Não informado").trim() || "Não informado";
+        const nomeServico =
+          String(a.servico || "Não informado").trim() || "Não informado";
         servicosMap[nomeServico] = (servicosMap[nomeServico] || 0) + 1;
       }
       const servicos = Object.entries(servicosMap)
@@ -4133,12 +4424,16 @@ app.get("/app/relatorios/:barbeiro", (req, res) => {
       const clientesMap = {};
       for (const a of finalizadosMes) {
         const nome = String(a.nome || "Cliente").trim() || "Cliente";
-        if (!clientesMap[nome]) clientesMap[nome] = { nome, atendimentos: 0, total_gasto: 0 };
+        if (!clientesMap[nome])
+          clientesMap[nome] = { nome, atendimentos: 0, total_gasto: 0 };
         clientesMap[nome].atendimentos += 1;
         clientesMap[nome].total_gasto += Number(a.valor || 0);
       }
       const topClientes = Object.values(clientesMap)
-        .sort((a, b) => b.atendimentos - a.atendimentos || b.total_gasto - a.total_gasto)
+        .sort(
+          (a, b) =>
+            b.atendimentos - a.atendimentos || b.total_gasto - a.total_gasto,
+        )
         .slice(0, 5);
 
       res.json({
@@ -4156,7 +4451,6 @@ app.get("/app/relatorios/:barbeiro", (req, res) => {
     },
   );
 });
-
 
 // ======================================================
 // PERFIL DO BARBEIRO
@@ -4360,7 +4654,6 @@ app.put("/app/perfil/:barbeiro/senha", (req, res) => {
   );
 });
 
-
 // ======================================================
 // ALTERAR SENHA DO BARBEIRO
 // ======================================================
@@ -4467,6 +4760,16 @@ app.post("/app/alterar-senha", (req, res) => {
       );
     },
   );
+});
+
+// ======================================================
+// ASSINATURAS VIP (ETAPA 1: CHECKOUT SEM LIBERAÇÃO DE CORTES)
+// ======================================================
+require("./assinaturas")({
+  app,
+  db,
+  autenticarClienteToken,
+  autenticarBarbeiro: autenticarToken,
 });
 
 // ======================================================
